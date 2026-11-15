@@ -12,7 +12,6 @@ import math
 import os
 from pathlib import Path
 import re
-import struct
 import sys
 import tempfile
 import time
@@ -20,7 +19,7 @@ from datetime import datetime, timezone
 from urllib.parse import urlencode, urlsplit
 from urllib.request import HTTPRedirectHandler, Request, build_opener
 import xml.etree.ElementTree as ET
-import zlib
+from image_validation import png_size
 
 sys.dont_write_bytecode = True
 import radar
@@ -159,11 +158,8 @@ def download(url, limit):
             raise OSError("Try again in a minute")
         save_json(CACHE / "requests.json", recent + [now])
         request = Request(url, headers={"User-Agent": USER_AGENT, "Accept": "application/xml, image/png"})
-        with build_opener(SafeRedirect()).open(request, timeout=8) as response:
-            result = response.read(limit + 1)
-        if len(result) > limit:
-            raise ValueError("Map response too large")
-        return result
+        with build_opener(SafeRedirect()).open(request, timeout=radar.remaining_timeout(8)) as response:
+            return radar.read_response(response, limit)
 
 
 def iso_time(stamp):
@@ -323,38 +319,6 @@ def viewport_parts(lat, lon, zoom):
     return parts
 
 
-def png_size(data):
-    if not isinstance(data, bytes) or not 45 <= len(data) <= IMAGE_LIMIT or not data.startswith(radar.PNG):
-        raise ValueError("Invalid map image")
-    offset, width, height, idat, chunks = 8, 0, 0, False, 0
-    while offset + 12 <= len(data):
-        length = struct.unpack(">I", data[offset:offset + 4])[0]
-        kind = data[offset + 4:offset + 8]
-        if length > IMAGE_LIMIT or offset + length + 12 > len(data):
-            raise ValueError("Truncated map image")
-        body = data[offset + 8:offset + 8 + length]
-        crc = struct.unpack(">I", data[offset + 8 + length:offset + 12 + length])[0]
-        if zlib.crc32(kind + body) & 0xffffffff != crc:
-            raise ValueError("Corrupted map image")
-        if chunks == 0:
-            if kind != b"IHDR" or length != 13:
-                raise ValueError("Invalid map image")
-            width, height = struct.unpack(">II", body[:8])
-            if not 1 <= width <= 1024 or not 1 <= height <= 1024:
-                raise ValueError("Invalid map dimensions")
-        if kind == b"IDAT":
-            idat = True
-        offset += length + 12
-        chunks += 1
-        if chunks > 256:
-            raise ValueError("Map image too large")
-        if kind == b"IEND":
-            if length or offset != len(data) or not idat:
-                raise ValueError("Invalid map image")
-            return width, height
-    raise ValueError("Truncated map image")
-
-
 def image_path(url):
     return CACHE / "images" / (hashlib.sha256(url.encode()).hexdigest() + ".png")
 
@@ -433,6 +397,7 @@ def empty_result(prefs):
             "updated": int(time.time()), "stale": False}
 
 
+@radar.request_budget()
 def load(city, selected=None):
     prefs = settings()
     result = empty_result(prefs)
@@ -488,7 +453,8 @@ def load(city, selected=None):
     if not legend:
         result["message"] = "Legend unavailable; retry before interpreting the colors."
     prune_cache(protected)
-    radar.prune_cache()
+    from urllib.parse import unquote
+    radar.prune_cache({Path(unquote(urlsplit(tile["source"]).path)) for tile in base if tile["source"]})
     return result
 
 
@@ -510,7 +476,7 @@ def main(args):
 
 if __name__ == "__main__":
     try:
-        output = main(sys.argv[1:])
+        output = radar.bounded_cli(lambda: main(sys.argv[1:]), lambda: empty_result(settings()))
     except Exception:
         output = empty_result(settings())
         output.update(stale=True, error="Forecast map connection unavailable. Please try again.")

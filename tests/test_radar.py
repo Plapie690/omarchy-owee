@@ -6,6 +6,7 @@ import tempfile
 import time
 import unittest
 from unittest.mock import patch
+import zlib
 
 spec = importlib.util.spec_from_file_location("pixel_radar", Path(__file__).resolve().parents[1] / "radar.py")
 r = importlib.util.module_from_spec(spec)
@@ -13,7 +14,12 @@ spec.loader.exec_module(r)
 
 
 def png(size=256):
-    return r.PNG + struct.pack(">I", 13) + b"IHDR" + struct.pack(">II", size, size) + bytes(13) + bytes(4) + b"IEND" + bytes(4)
+    def chunk(kind, body):
+        return struct.pack(">I", len(body)) + kind + body + struct.pack(">I", zlib.crc32(kind + body) & 0xffffffff)
+    sample = min(size, 256)
+    raw = (b"\x00" + bytes([50, 100, 200, 180]) * sample) * sample
+    return (r.PNG + chunk(b"IHDR", struct.pack(">IIBBBBB", size, size, 8, 6, 0, 0, 0))
+            + chunk(b"IDAT", zlib.compress(raw)) + chunk(b"IEND", b""))
 
 
 def api(stamp=None):

@@ -10,3 +10,8 @@ qa/*.log
 qa/*.png
 qa/*.json
 !preview.png
+
+.release.lock
+.coverage*
+.mypy_cache/
+.ruff_cache/

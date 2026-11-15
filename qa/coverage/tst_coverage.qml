@@ -84,7 +84,48 @@ ShellRoot {
           check(events.mouseClick(action,action.width/2,action.height/2,Qt.LeftButton,Qt.NoModifier,1),"native fallback button receives a real click")
           check(forecastRequests===1,"fallback signal is emitted exactly once")
           console.warn("QA_COVERAGE_POLAR_PASS: unsupported projection keeps coordinates and emits native fallback action")
-          console.warn("QA_COVERAGE_PASS: masks, missing data, projection limits, local clocks and fallback action")
+          radar.active=false;radar.radar=fixtures.clear;forecast.forecast=fixtures.forecastReady
+          step++;return
+        }
+        if(step===7) {
+          if(!radar.imageReady||!forecast.imageReady)return
+          radar.playing=true;forecast.playing=true
+          radar.radar=fixtures.radarMissing;forecast.forecast=fixtures.forecastMissing
+          step++;return
+        }
+        if(step===8) {
+          if(!radar.imageError||!forecast.imageError)return
+          check(!radar.imageReady&&!forecast.imageReady,"missing files are never marked ready")
+          check(!radar.playing&&!forecast.playing,"missing imagery stops playback")
+          check(radar.message.indexOf("unavailable")>=0&&forecast.message.indexOf("unavailable")>=0,"missing imagery has explicit recovery message")
+          radar.radar=fixtures.radarCorrupt;forecast.forecast=fixtures.forecastCorrupt
+          step++;return
+        }
+        if(step===9) {
+          if(!radar.imageError||!forecast.imageError)return
+          check(!radar.imageReady&&!forecast.imageReady,"undecodable files are never marked ready")
+          radar.radar=fixtures.clear;forecast.forecast=fixtures.forecastReady
+          step++;return
+        }
+        if(step===10) {
+          if(!radar.imageReady||!forecast.imageReady)return
+          console.warn("QA_COVERAGE_IMAGES_PASS: missing and corrupted images stop playback; valid imagery recovers")
+          radar.city={latitude:44,longitude:12};radar.active=true
+          forecast.city={latitude:44,longitude:12};forecast.active=true
+          step++;return
+        }
+        if(step===11) {
+          if(radar.busy||forecast.busy)return
+          check(radar.message.indexOf("timed out")>=0&&forecast.message.indexOf("timed out")>=0,"silent map workers are terminated with explicit timeout")
+          check(!radar.playing&&!forecast.playing,"watchdog stops playback")
+          radar.city={latitude:45.75,longitude:4.85};forecast.city={latitude:45.75,longitude:4.85}
+          step++;return
+        }
+        if(step===12) {
+          if(radar.busy||forecast.busy||!radar.imageReady||!forecast.imageReady)return
+          check(radar.message===""&&forecast.message==="","both maps recover after a worker timeout")
+          console.warn("QA_COVERAGE_WATCHDOG_PASS: silent workers terminate and a subsequent request recovers")
+          console.warn("QA_COVERAGE_PASS: masks, image faults, watchdogs, projection limits, local clocks and fallback action")
           Qt.quit()
         }
       } catch(error) { console.error(error.message);Qt.exit(1) }

@@ -21,7 +21,6 @@ import shutil
 import signal
 import statistics
 import subprocess
-import sys
 import tempfile
 import time
 
@@ -30,7 +29,7 @@ ROOT = HERE.parent
 FULL_DURATION = 12 * 60 * 60
 FULL_CYCLES = 1000
 MIB = 1024 * 1024
-CODE_SUFFIXES = {".qml", ".js", ".py", ".sh", ".yml", ".yaml"}
+CODE_SUFFIXES = {".qml", ".js", ".py", ".sh", ".yml", ".yaml", ".toml"}
 EXCLUDED_PARTS = {".git", "reports", "__pycache__", ".cache", ".venv"}
 STOP_REQUESTED = False
 
@@ -47,7 +46,7 @@ def source_digest(root):
         relative = path.relative_to(root)
         if any(part in EXCLUDED_PARTS for part in relative.parts) or not path.is_file():
             continue
-        if path.suffix not in CODE_SUFFIXES and relative.as_posix() != "manifest.json":
+        if path.suffix not in CODE_SUFFIXES and relative.as_posix() not in ("manifest.json", "requirements-dev.txt"):
             continue
         content = path.read_bytes()
         digest.update(relative.as_posix().encode() + b"\0" + content + b"\0")

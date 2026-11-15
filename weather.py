@@ -3,21 +3,18 @@
 import json
 import copy
 import re
-import fcntl
 import hashlib
 import math
 import os
 import sys
-import tempfile
 import time
 from pathlib import Path
-from urllib.parse import urlencode
-from urllib.request import Request, urlopen
 sys.dont_write_bytecode = True  # Imports must not trigger Omarchy plugin hot reload.
 import notifications
 import network
 import storage
 from weather_data import normalize_weather, normalize_air
+from diagnostics import report_error
 
 LIMIT = 1_000_000
 DEFAULT = {"name": "Lyon", "latitude": 45.75, "longitude": 4.85, "country": "France"}
@@ -31,6 +28,20 @@ CARD_IDS = ["wind", "humidity", "uv", "sun", "pressure", "visibility", "precipit
 read_json = storage.read_json
 save_json = storage.save_json
 MIN_REFRESH_SECONDS = 60
+DOWNLOAD_TTL = 1800
+OBSERVATION_MAX_AGE = 5400
+FUTURE_TOLERANCE = 300
+
+
+def fresh_weather(data, updated, now=None):
+    """A new download alone cannot make an old or future observation current."""
+    now = time.time() if now is None else now
+    current = data.get('current', {}) if isinstance(data, dict) else {}
+    observed = current.get('time_utc') if isinstance(current, dict) else None
+    return (type(updated) in (int, float) and math.isfinite(updated)
+            and now - DOWNLOAD_TTL <= updated <= now + FUTURE_TOLERANCE
+            and type(observed) in (int, float) and math.isfinite(observed)
+            and now - OBSERVATION_MAX_AGE <= observed <= now + FUTURE_TOLERANCE)
 
 
 def request(url, params):
@@ -95,7 +106,9 @@ def forecast(city):
     normalized["air"] = air.get("air", {})
     normalized["air_updated"] = air.get("updated")
     normalized["air_stale"] = air.get("stale", True)
-    return {"city": city, "data": normalized, "updated": int(time.time()), "stale": False}
+    updated = int(time.time())
+    return {"city": city, "data": normalized, "updated": updated,
+            "stale": not fresh_weather(normalized, updated)}
 
 
 def air_path(city):
@@ -123,7 +136,8 @@ def enrich(city):
             save_json(air_path(city), result)
             storage.prune_weather(STATE, [air_path(city), cache_for(city)])
             return result
-    except (OSError, ValueError):
+    except (OSError, ValueError) as error:
+        report_error('weather.air', error)
         if cached: return {**cached, "stale": True}
         return {"city_key": city_key(city), "air": {}, "capabilities": {"air": {"status": "unavailable", "source": "CAMS / Open-Meteo"}, "pollen": {"status": "unavailable", "source": "CAMS / Open-Meteo"}}, "error": "Air and pollen data unavailable", "stale": True}
 
@@ -172,7 +186,7 @@ def cached_forecast(city):
         normalized["air_stale"] = data.get("air_stale", True)
         normalized["air_updated"] = data.get("air_updated")
         return {"city": city, "data": normalized, "updated": updated,
-                "stale": raw.get("stale") is True or time.time() - updated > 1800}
+                "stale": raw.get("stale") is True or not fresh_weather(normalized, updated)}
     return None
 
 
@@ -189,7 +203,8 @@ def weather_for(city, *, refresh=False, network=False, required=False):
                     return newest
                 try:
                     result = forecast(city)
-                except Exception:
+                except Exception as error:
+                    report_error('weather.forecast', error)
                     latest = cached_forecast(city)
                     if latest:
                         if cached and latest.get("updated",0)>cached.get("updated",0): return latest
@@ -198,16 +213,27 @@ def weather_for(city, *, refresh=False, network=False, required=False):
                         return latest
                     if required: raise
                     return {"city":city,"stale":True,"error":"Weather connection unavailable"}
+                # A reachable provider can still return an older observation. Keep
+                # the better validated cache, including its honest freshness state.
+                previous_time = newest.get('data', {}).get('current', {}).get('time_utc') if newest else None
+                incoming_time = result.get('data', {}).get('current', {}).get('time_utc')
+                if (result.get('stale') and type(previous_time) in (int, float)
+                        and (not newest.get('stale') or type(incoming_time) not in (int, float)
+                             or previous_time > incoming_time)):
+                    report_error('weather.stale_provider_response', ValueError())
+                    return newest
                 try:
                     save_json(cache_for(city), result)
                     storage.prune_weather(STATE, [cache_for(city)])
-                except OSError:
+                except OSError as error:
+                    report_error('weather.cache_write', error)
                     result["cache_error"] = "Local cache unavailable; live data is shown"
                 return result
         except BlockingIOError:
             if cached: return {**cached,"refresh_pending":True}
             if required: raise OSError("Weather update already in progress; please retry")
-        except Exception:
+        except Exception as error:
+            report_error('weather.refresh', error)
             if cached:
                 cached["stale"] = True
                 # A failed competing worker must never overwrite a newer cache.
@@ -376,6 +402,7 @@ if __name__ == "__main__":
         result = main(sys.argv[1:])
         output = json.dumps(result, ensure_ascii=False, allow_nan=False)
     except Exception as error:
+        report_error('weather.cli', error)
         message = str(error)[:160] if isinstance(error, (ValueError, network.NetworkError)) else "Unable to retrieve data. Please try again."
         output = json.dumps({"error": message}, ensure_ascii=False)
     print(output)

@@ -6,7 +6,7 @@ network/provider errors and source edits invalidate this qualification report.
 """
 import argparse
 from concurrent.futures import ThreadPoolExecutor
-from datetime import datetime, timezone
+from datetime import datetime
 import json
 import math
 from pathlib import Path

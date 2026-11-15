@@ -15,6 +15,7 @@ import tempfile
 from datetime import datetime, timedelta
 from pathlib import Path
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
+from diagnostics import report_error
 
 DEFAULTS = {
     "enabled": False, "rain": True, "rain_probability": 60, "rain_hours": 3,
@@ -106,6 +107,15 @@ def _temperature(value, unit):
     return str(round(value * 9 / 5 + 32 if unit == "F" else value)) + "°" + unit
 
 
+def _daily_occurrence(clock, schedule):
+    """Return the last scheduled local occurrence and its real elapsed age."""
+    scheduled = clock.replace(hour=int(schedule[:2]), minute=int(schedule[3:]),
+                              second=0, microsecond=0)
+    if scheduled.timestamp() > clock.timestamp():
+        scheduled -= timedelta(days=1)
+    return scheduled, clock.timestamp() - scheduled.timestamp()
+
+
 def evaluate(result, config, now=None):
     """Return at most four plain-text candidates; no side effects.
 
@@ -182,14 +192,14 @@ def evaluate(result, config, now=None):
         candidate("uv", "UV index in " + name,
                   f"Forecast maximum today: {uv:g}. Threshold: {config['uv_index']}. Open-Meteo forecast.", day)
 
-    minute = clock.hour * 60 + clock.minute
-    if config["daily"] and 0 <= minute - _minutes(config["daily_time"]) < 60:
+    scheduled, scheduled_age = _daily_occurrence(clock, config['daily_time'])
+    if config["daily"] and 0 <= scheduled_age < 3600:
         unit = "F" if result.get("unit") == "F" else "C"
         low = _temperature(_at(daily.get("temperature_2m_min"), daily_index), unit) if isinstance(daily, dict) else "—"
         high = _temperature(_at(daily.get("temperature_2m_max"), daily_index), unit) if isinstance(daily, dict) else "—"
         candidate("daily", "Daily weather · " + name,
                   f"Currently {_temperature(current.get('temperature_2m'), unit)}. Low {low}, high {high}. Open-Meteo forecast.",
-                  clock.date().isoformat())
+                  scheduled.date().isoformat())
     return output
 
 
@@ -208,7 +218,8 @@ def send_test(city=None):
     try:
         _send("OWEE · test", "Notifications are working" + (" for " + name if name else "") + ".")
         return {"sent": 1}
-    except (OSError, subprocess.SubprocessError):
+    except (OSError, subprocess.SubprocessError) as error:
+        report_error('notifications.test_delivery', error)
         return {"sent": 0, "error": "Unable to send notification: check the notification service."}
 
 
@@ -237,20 +248,33 @@ def _save_records(path, records):
     try:
         with os.fdopen(fd, "w", encoding="utf-8") as output:
             json.dump(records, output, allow_nan=False)
+            output.flush()
+            os.fsync(output.fileno())
         os.replace(temporary, path)
+        directory = os.open(path.parent, os.O_RDONLY | os.O_DIRECTORY)
+        try:
+            os.fsync(directory)
+        finally:
+            os.close(directory)
     finally:
         if os.path.exists(temporary):
             os.unlink(temporary)
 
 
 def dispatch(result, config, state_dir, now=None):
-    """Send eligible candidates once across reloads/processes, with a cooldown."""
+    """Attempt each reserved candidate at most once across processes/reloads.
+
+    Reserve durably before invoking the external notification daemon. A failed
+    or interrupted delivery retains its reservation: an alert can be missed,
+    but an ambiguous delivery cannot cause duplicate retries.
+    """
     config = normalise_settings(config)
     clock = _local_now(now)
     candidates = evaluate(result, config, clock)
     if not candidates:
         return {"sent": 0}
     sent = 0
+    operation = 'notifications.state'
     try:
         state_dir = Path(state_dir)
         state_dir.mkdir(parents=True, exist_ok=True)
@@ -267,10 +291,16 @@ def dispatch(result, config, state_dir, now=None):
                 age = epoch - previous.get("sent", 0)
                 if previous and (age < config["cooldown_minutes"] * 60 or previous.get("signature") == item["signature"]):
                     continue
+                records[item["key"]] = {"sent": epoch, "signature": item["signature"]}
+                operation = 'notifications.reservation'
+                _save_records(state_path, records)
+                operation = 'notifications.delivery'
                 _send(item["title"], item["body"])
                 sent += 1
-                records[item["key"]] = {"sent": epoch, "signature": item["signature"]}
-                _save_records(state_path, records)
         return {"sent": sent}
-    except (OSError, subprocess.SubprocessError):
-        return {"sent": sent, "error": "Unable to send notification: check the notification service."}
+    except (OSError, subprocess.SubprocessError) as error:
+        report_error(operation, error)
+        message = ("Unable to send notification: check the notification service."
+                   if operation == 'notifications.delivery' else
+                   "Unable to save notification history; no further notifications were sent.")
+        return {"sent": sent, "error": message}

@@ -120,7 +120,7 @@ def preview(directory, light):
     from PySide6.QtGui import QGuiApplication
     from PySide6.QtQuick import QQuickView
     from PySide6.QtTest import QTest
-    app = QGuiApplication.instance() or QGuiApplication([])
+    app = QGuiApplication.instance() or QGuiApplication([])  # noqa: F841 - retain the Qt application lifetime
     source = PREVIEW
     if light:
         source = source.replace("#171923", "#edf1f8").replace("#222737", "#dbe3f2").replace("#b7bfdf", "#26354a")

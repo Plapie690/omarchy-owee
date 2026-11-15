@@ -1,4 +1,3 @@
-import copy
 import fcntl
 import importlib.util
 import json
@@ -182,11 +181,14 @@ class NotificationTests(unittest.TestCase):
         self.assertEqual(n.dispatch(fixture(tomorrow), settings, self.state, tomorrow)['sent'], 1)
 
     @patch.object(n, '_send', side_effect=OSError('no daemon'))
-    def test_failed_send_is_reported_and_not_marked_sent(self, send):
+    def test_failed_send_is_reported_and_retains_a_reservation(self, send):
         status = n.dispatch(fixture(), config(rain=False, uv=False), self.state, NOW)
         self.assertEqual(status['sent'], 0)
         self.assertIn('error', status)
-        self.assertFalse((self.state / 'notification-state.json').exists())
+        self.assertTrue((self.state / 'notification-state.json').exists())
+        # Delivery may have reached the daemon before an error: never retry ambiguously.
+        self.assertEqual(n.dispatch(fixture(), config(rain=False, uv=False), self.state, NOW)['sent'], 0)
+        self.assertEqual(send.call_count, 1)
         self.assertIn('error', n.send_test())
 
     @patch.object(n, '_send')

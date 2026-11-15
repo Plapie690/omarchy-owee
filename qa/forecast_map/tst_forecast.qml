@@ -127,7 +127,7 @@ Item {
       tryVerify(function(){return !map.busy&&map.message!==""},6000)
       compare(map.playing,false)
       compare(map.currentImages.length,0)
-      verify(map.message.indexOf("Connexion")>=0)
+      compare(map.message,"Test connection unavailable")
     }
     function test_expired_frames_are_pruned_without_network() {
       activate()

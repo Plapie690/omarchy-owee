@@ -5,7 +5,7 @@ local-time rain timelines, animated past radar, forecast maps and opt-in
 notifications. Independent of Google and Omarchy; Pixel Weather inspired the
 visual direction. English UI. MIT code, separately licensed data.
 
-**Current build: 1.3.0-rc.1 — release candidate, not yet declared stable.**
+**Current build: 1.3.0-rc.2 — release candidate, not yet declared stable.**
 A real twelve-hour endurance report is required before stable promotion.
 
 ## Requirements
@@ -80,7 +80,7 @@ python3 -B qa/qualify.py                         # offline CI gates
 python3 -B qa/qualify.py --native                # actual Omarchy runtime/UI gates
 python3 -B qa/international.py                  # bounded live global probes
 python3 -B qa/live_maps.py                      # bounded live map contracts
-python3 -B qa/endurance.py --report-dir reports/endurance-1.3.0-rc.1
+python3 -B qa/endurance.py --report-dir reports/endurance-1.3.0-rc.2
 python3 -B tools/promote.py                     # checks gates; does not publish
 ```
 

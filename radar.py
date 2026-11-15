@@ -10,7 +10,7 @@ import math
 import os
 from pathlib import Path
 import re
-import struct
+import signal
 import sys
 import tempfile
 import threading
@@ -19,6 +19,7 @@ from datetime import datetime
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 from urllib.parse import urlsplit
 from urllib.request import Request, build_opener, HTTPRedirectHandler
+from image_validation import PNG as PNG, png_size
 
 STATE = Path(os.environ.get("XDG_STATE_HOME", str(Path.home() / ".local/state"))) / "pixel-weather"
 CACHE = Path(os.environ.get("XDG_CACHE_HOME", str(Path.home() / ".cache"))) / "pixel-weather/radar"
@@ -31,8 +32,76 @@ JSON_LIMIT = 65_536
 IMAGE_LIMIT = 1_000_000
 MAX_CACHE_BYTES = 96 * 1024 * 1024
 OSM_CACHE_BYTES = 32 * 1024 * 1024
-PNG = b"\x89PNG\r\n\x1a\n"
 RATE_LOCK = threading.Lock()
+REQUEST_SECONDS = 40
+_deadline = None
+
+
+@contextmanager
+def request_budget():
+    """Share one monotonic budget across metadata, imagery and basemap workers."""
+    global _deadline
+    previous = _deadline
+    _deadline = min(previous, time.monotonic() + REQUEST_SECONDS) if previous is not None else time.monotonic() + REQUEST_SECONDS
+    try:
+        yield
+    finally:
+        _deadline = previous
+
+
+def remaining_timeout(idle):
+    remaining = REQUEST_SECONDS if _deadline is None else _deadline - time.monotonic()
+    if remaining <= 0:
+        raise TimeoutError("Map request timed out")
+    return min(idle, remaining)
+
+
+def read_response(response, limit):
+    """Read available chunks rather than allowing a slow drip to reset the budget."""
+    output = bytearray()
+    while len(output) <= limit:
+        timeout = remaining_timeout(8)
+        socket = getattr(getattr(getattr(response, "fp", None), "raw", None), "_sock", None)
+        if socket is not None:
+            socket.settimeout(timeout)
+        block = getattr(response, "read1", response.read)(min(65_536, limit + 1 - len(output)))
+        if not block:
+            break
+        output.extend(block)
+    remaining_timeout(8)
+    if len(output) > limit:
+        raise ValueError("Map response too large")
+    return bytes(output)
+
+
+@contextmanager
+def file_lock(file):
+    while True:
+        remaining_timeout(8)
+        try:
+            fcntl.flock(file, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            break
+        except BlockingIOError:
+            time.sleep(min(0.01, remaining_timeout(8)))
+    try:
+        yield
+    finally:
+        fcntl.flock(file, fcntl.LOCK_UN)
+
+
+def bounded_cli(callback, fallback):
+    """The CLI also bounds stalled DNS and non-interruptible worker shutdown."""
+    def expired(signum, frame):
+        output = fallback()
+        output.update(stale=True, error="Map request timed out. Please try again.")
+        print(json.dumps(output, ensure_ascii=False, allow_nan=False), flush=True)
+        os._exit(124)
+    signal.signal(signal.SIGALRM, expired)
+    signal.setitimer(signal.ITIMER_REAL, REQUEST_SECONDS)
+    try:
+        return callback()
+    finally:
+        signal.setitimer(signal.ITIMER_REAL, 0)
 
 
 def read_json(path, fallback):
@@ -125,19 +194,23 @@ class SafeRedirect(HTTPRedirectHandler):
 
 @contextmanager
 def rate_guard():
-    # Shared across threads and short-lived processes; fail fast instead of sleeping.
+    # Shared across threads and short-lived processes; waits share the request budget.
     CACHE.mkdir(parents=True, exist_ok=True)
-    with RATE_LOCK, (CACHE / ".request-lock").open("a") as lock:
-        fcntl.flock(lock, fcntl.LOCK_EX)
-        now = time.time()
-        recent = read_json(CACHE / "requests.json", [])
-        if not isinstance(recent, list):
-            recent = []
-        recent = [t for t in recent if type(t) in (float, int) and now - 60 < t <= now]
-        if len(recent) >= 90:
-            raise OSError("Radar rate limit reached; try again in a minute")
-        save_json(CACHE / "requests.json", recent + [now])
-        yield
+    if not RATE_LOCK.acquire(timeout=remaining_timeout(8)):
+        raise TimeoutError("Map rate lock timed out")
+    try:
+        with (CACHE / ".request-lock").open("a") as lock, file_lock(lock):
+            now = time.time()
+            recent = read_json(CACHE / "requests.json", [])
+            if not isinstance(recent, list):
+                recent = []
+            recent = [t for t in recent if type(t) in (float, int) and now - 60 < t <= now]
+            if len(recent) >= 90:
+                raise OSError("Radar rate limit reached; try again in a minute")
+            save_json(CACHE / "requests.json", recent + [now])
+            yield
+    finally:
+        RATE_LOCK.release()
 
 
 def download(url, limit):
@@ -148,19 +221,15 @@ def download(url, limit):
     with rate_guard():
         pass
     req = Request(url, headers={"User-Agent": USER_AGENT, "Accept": "image/png, application/json"})
-    with build_opener(SafeRedirect()).open(req, timeout=5) as response:
-        result = response.read(limit + 1)
-    if len(result) > limit:
-        raise ValueError("Radar response too large")
-    return result
+    with build_opener(SafeRedirect()).open(req, timeout=remaining_timeout(5)) as response:
+        return read_response(response, limit)
 
 
 def valid_png(data, size=256):
-    if not isinstance(data, bytes) or len(data) < 45 or len(data) > IMAGE_LIMIT or not data.startswith(PNG):
+    try:
+        return png_size(data) == (size, size)
+    except ValueError:
         return False
-    if data[12:16] != b"IHDR" or struct.unpack(">II", data[16:24]) != (size, size):
-        return False
-    return data[-12:-8] == b"\x00\x00\x00\x00" and data[-8:-4] == b"IEND"
 
 
 def validate_manifest(value, now=None):
@@ -252,14 +321,15 @@ def osm_room(preserve):
 
 def _tile(url, osm=False, network=True, deadline=None):
     digest = hashlib.sha256(url.encode()).hexdigest()
-    path = CACHE / ("osm-" if osm else "radar-") / (digest + ".png")
+    coverage = url.startswith(RADAR_HOST + "/v2/coverage/")
+    path = CACHE / ("osm-" if osm else "coverage-" if coverage else "radar-") / (digest + ".png")
     cached = None
     try:
         if path.stat().st_size <= IMAGE_LIMIT:
             data = path.read_bytes()
             if valid_png(data):
                 cached = path.resolve().as_uri()
-                if time.time() - path.stat().st_mtime < (7 * 86400 if osm or url.startswith(RADAR_HOST + "/v2/coverage/") else 86400):
+                if time.time() - path.stat().st_mtime < (7 * 86400 if osm or coverage else 86400):
                     return cached
     except OSError:
         pass
@@ -282,16 +352,16 @@ def tile(url, osm=False, network=True, deadline=None):
         return _tile(url, False, network, deadline)
     CACHE.mkdir(parents=True, exist_ok=True)
     # Serialize quota reservation and write, including across simultaneous shell instances.
-    with (CACHE / ".osm-cache-lock").open("a") as lock:
-        fcntl.flock(lock, fcntl.LOCK_EX)
+    with (CACHE / ".osm-cache-lock").open("a") as lock, file_lock(lock):
         return _tile(url, True, network, deadline)
 
 
-def prune_cache():
+def prune_cache(protected=()):
     """Bound disk usage without prematurely re-fetching recently viewed OSM tiles."""
     CACHE.mkdir(parents=True, exist_ok=True)
     entries = []
-    for folder in (CACHE / "osm-", CACHE / "radar-"):
+    protected = set(protected)
+    for folder in (CACHE / "osm-", CACHE / "radar-", CACHE / "coverage-"):
         if not folder.exists():
             continue
         for path in folder.glob("*.png"):
@@ -304,8 +374,9 @@ def prune_cache():
     # Radar imagery is expendable before a map tile's minimum cache lifetime.
     for modified, path, size in sorted(entries, key=lambda item: (item[1].parent.name == "osm-", item[0])):
         age = time.time() - modified
-        protected = path.parent.name == "osm-" and age < 7 * 86400
-        if not protected and (age > (30 * 86400 if path.parent.name == "osm-" else 86400) or total > MAX_CACHE_BYTES):
+        keep = path in protected or (path.parent.name == "osm-" and age < 7 * 86400)
+        lifetime = 30 * 86400 if path.parent.name == "osm-" else 7 * 86400 if path.parent.name == "coverage-" else 86400
+        if not keep and (age > lifetime or total > MAX_CACHE_BYTES):
             try:
                 path.unlink()
                 total -= size
@@ -313,6 +384,7 @@ def prune_cache():
                 pass
 
 
+@request_budget()
 def load(city):
     prefs = settings()
     if not prefs["enabled"]:
@@ -328,7 +400,7 @@ def load(city):
     layout = viewport(lat, lon, zoom)
     value, stale = manifest()
     frames = value["radar"]["past"]
-    deadline = time.monotonic() + 40
+    deadline = _deadline
     jobs = [("base", i, f"{OSM_HOST}/{zoom}/{t['x']}/{t['y']}.png", True)
             for i, t in enumerate(layout)]
     jobs.extend(("coverage", i, f"{RADAR_HOST}/v2/coverage/0/256/{zoom}/{t['x']}/{t['y']}/0/0_0.png", False)
@@ -351,7 +423,9 @@ def load(city):
         if all(images.get((fi, i)) for i in range(len(layout))):
             ready.append({"time": frame["time"], "tiles": [images[fi, i] for i in range(len(layout))],
                           **local_frame_time(frame["time"], city)})
-    prune_cache()
+    from urllib.parse import unquote
+    protected = {Path(unquote(urlsplit(source).path)) for source in images.values() if source}
+    prune_cache(protected)
     result = {"settings": prefs, "latitude": lat, "longitude": lon, "tiles": base,
               "frames": ready, "stale": stale, "width": 432, "height": 240,
               "partial": len(ready) < len(frames) or any(not t["source"] for t in base)}
@@ -383,7 +457,7 @@ def main(args):
 
 if __name__ == "__main__":
     try:
-        output = main(sys.argv[1:])
+        output = bounded_cli(lambda: main(sys.argv[1:]), lambda: {"settings": settings(), "frames": []})
     except Exception:
         output = {"settings": settings(), "frames": [], "error": "Radar connection unavailable. Please try again."}
     print(json.dumps(output, ensure_ascii=False, allow_nan=False))

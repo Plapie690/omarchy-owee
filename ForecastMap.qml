@@ -25,12 +25,14 @@ Rectangle {
   property int settingsRevision: 0
   property int dataRevision: 0
   property double clockEpoch: Date.now() / 1000
+  property int imageRevision: 0
   readonly property bool busy: worker.running
   readonly property bool animationAllowed: Commons.Style.duration(1) > 0
   readonly property var frames: Array.isArray(forecast.frames) ? forecast.frames.filter(function(frame) { return typeof frame.time === "number" && isFinite(frame.time) && frame.time > root.clockEpoch }) : []
   readonly property var currentFrame: frames.length > frameIndex ? frames[frameIndex] : null
   readonly property var currentImages: currentFrame && Array.isArray(currentFrame.images) ? currentFrame.images : []
-  readonly property bool imageReady: currentImages.length > 0 && currentImages.every(function(item) { return root.localSource(item.source) !== "" })
+  readonly property bool imageReady: frameImageState(false)
+  readonly property bool imageError: frameImageState(true)
   readonly property string cityKey: city && city.latitude != null && city.longitude != null && isFinite(city.latitude) && isFinite(city.longitude) ? Number(city.latitude).toFixed(5) + "," + Number(city.longitude).toFixed(5) : ""
   readonly property string frameTime: currentFrame ? dateTime(currentFrame.time) : "—"
   readonly property var layerOptions: Array.isArray(forecast.layers) && forecast.layers.length ? forecast.layers : [
@@ -52,6 +54,16 @@ Rectangle {
   function localSource(value) {
     return typeof value === "string" && value.length < 4096 && value.indexOf("file:///") === 0 ? value : ""
   }
+  function frameImageState(errors) {
+    if(imageRevision<0 || !frameImages || !currentImages.length || frameImages.count!==currentImages.length) return false
+    for(var i=0;i<frameImages.count;i++) {
+      var image=frameImages.itemAt(i)
+      if(errors && image && image.status===Image.Error)return true
+      if(!errors && (!image || image.status!==Image.Ready))return false
+    }
+    return !errors
+  }
+  onImageErrorChanged: if(imageError) Qt.callLater(function(){if(root.imageError){root.playing=false;root.message="Forecast image unavailable. Refresh to try again."}})
   function dateTime(stamp) {
     if (typeof stamp !== "number" || !isFinite(stamp) || stamp <= 0) return "—"
     var local=""
@@ -70,6 +82,7 @@ Rectangle {
     worker.requestDataRevision = dataRevision
     worker.requestTime = action === "frame" ? arg.time : 0
     worker.receivedOutput = false
+    worker.timedOut = false
     worker.command = arg === undefined ? ["python3", "-B", scriptPath, action] : ["python3", "-B", scriptPath, action, JSON.stringify(arg)]
     worker.running = true
   }
@@ -189,6 +202,8 @@ Rectangle {
 
   Process {
     id: worker
+    property bool timedOut: false
+    onRunningChanged: if(running)requestDeadline.restart();else requestDeadline.stop()
     property string action: ""
     property string requestKey: ""
     property int requestZoom: 6
@@ -198,7 +213,7 @@ Rectangle {
     property double requestTime: 0
     property bool receivedOutput: false
     onExited: {
-      if (!receivedOutput && root.active && root.forecastEnabled && requestDataRevision === root.dataRevision && root.queuedFrame === 0 && !root.loadRequested && root.queuedSettings === null && (action === "load" || action === "frame")) {
+      if (!timedOut && !receivedOutput && root.active && root.forecastEnabled && requestDataRevision === root.dataRevision && root.queuedFrame === 0 && !root.loadRequested && root.queuedSettings === null && (action === "load" || action === "frame")) {
         root.message = "Loading interrupted or forecast unavailable. Please try again."
         root.playing = false
       }
@@ -207,6 +222,7 @@ Rectangle {
     stdout: StdioCollector {
       waitForEnd: true
       onStreamFinished: {
+        if(worker.timedOut)return
         if (!text.trim()) return
         worker.receivedOutput = true
         try {
@@ -231,6 +247,12 @@ Rectangle {
         }
       }
     }
+  }
+  Timer {
+    id: requestDeadline
+    objectName: "forecast-request-deadline"
+    interval: 50000
+    onTriggered: {worker.timedOut=true;root.queuedFrame=0;root.loadRequested=false;worker.running=false;root.playing=false;root.message="Forecast map request timed out. Please try again."}
   }
   // One visible image at a time; no forecast sequence is downloaded in advance.
   Timer {
@@ -319,13 +341,16 @@ Rectangle {
             }
           }
           Repeater {
+            id: frameImages
             model: root.currentImages
+            onCountChanged: root.imageRevision++
             delegate: Image {
               required property var modelData
               x: modelData.left || 0; y: modelData.top || 0
               width: modelData.width; height: modelData.height
               source: root.localSource(modelData.source); asynchronous: false
               opacity: 0.78
+              onStatusChanged: root.imageRevision++
             }
           }
           Rectangle { anchors.centerIn: parent; width: 12; height: 12; radius: 6; color: Commons.Color.accent; border.color: "white"; border.width: 2; visible: root.imageReady }

@@ -2,6 +2,7 @@
 import json
 import math
 import time
+from typing import Any, Mapping, NoReturn
 from datetime import datetime, timezone
 from email.utils import parsedate_to_datetime
 from urllib.error import HTTPError, URLError
@@ -14,28 +15,28 @@ USER_AGENT = 'OWEE/1.3 (non-commercial desktop weather)'
 
 
 class NetworkError(OSError):
-    def __init__(self, reason, retry_after=0):
+    def __init__(self, reason: str, retry_after: int = 0) -> None:
         super().__init__(reason)
         self.reason = reason
         self.retry_after = retry_after
 
 
-def validate_url(url):
+def validate_url(url: str) -> None:
     p = urlsplit(url)
     if p.scheme != 'https' or p.netloc not in HOSTS or p.username or p.password:
         raise ValueError('Weather source refused')
 
 
 class SafeRedirect(HTTPRedirectHandler):
-    def redirect_request(self, req, fp, code, msg, headers, newurl):
+    def redirect_request(self, req: Any, fp: Any, code: int, msg: str, headers: Any, newurl: str) -> Any:
         validate_url(newurl)
         return super().redirect_request(req, fp, code, msg, headers, newurl)
 
 
-def strict_json(data):
-    def invalid(value):
+def strict_json(data: str | bytes) -> Any:
+    def invalid(value: str) -> NoReturn:
         raise ValueError('Non-finite JSON number')
-    def finite(value):
+    def finite(value: str) -> float:
         number = float(value)
         if not math.isfinite(number): raise ValueError('Non-finite JSON number')
         return number
@@ -43,7 +44,7 @@ def strict_json(data):
     except RecursionError as error: raise ValueError('JSON nesting too deep') from error
 
 
-def request(url, params):
+def request(url: str, params: Mapping[str, Any]) -> dict[str, Any]:
     validate_url(url)
     req = Request(url + '?' + urlencode(params), headers={'User-Agent': USER_AGENT, 'Accept': 'application/json'})
     deadline = time.monotonic() + 15

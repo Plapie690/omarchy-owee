@@ -5,8 +5,10 @@ import sys
 import tempfile
 import time
 import unittest
+from datetime import datetime
 from pathlib import Path
 from unittest.mock import patch
+from zoneinfo import ZoneInfo
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 spec = importlib.util.spec_from_file_location('weather', Path(__file__).resolve().parents[1] / 'weather.py')
@@ -17,6 +19,11 @@ DATA = {'current': {'temperature_2m': 12, 'time': '2026-11-12T10:15'}, 'hourly':
 
 class WeatherTests(unittest.TestCase):
     def setUp(self):
+        # The API fixture is historical; control its observation and download clocks together.
+        observed = datetime.fromisoformat(DATA['current']['time']).replace(tzinfo=ZoneInfo(DATA['timezone']))
+        self.clock = patch.object(w.time, 'time', return_value=observed.timestamp())
+        self.clock.start()
+        self.addCleanup(self.clock.stop)
         self.old_min_refresh = w.MIN_REFRESH_SECONDS
         w.MIN_REFRESH_SECONDS = 0  # Existing refresh scenarios intentionally bypass the new manual cooldown.
         self.temp = tempfile.TemporaryDirectory()

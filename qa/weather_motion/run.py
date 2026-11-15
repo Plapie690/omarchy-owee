@@ -56,7 +56,7 @@ def preview(directory, video, light=False):
     from PySide6.QtQuick import QQuickView
     from PySide6.QtTest import QTest
 
-    app = QGuiApplication.instance() or QGuiApplication([])
+    app = QGuiApplication.instance() or QGuiApplication([])  # noqa: F841 - retain the Qt application lifetime
     path = directory / "Preview.qml"
     source = PREVIEW
     if light:

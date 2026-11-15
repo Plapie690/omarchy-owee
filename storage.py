@@ -5,12 +5,13 @@ import os
 import tempfile
 from contextlib import contextmanager
 from pathlib import Path
+from typing import Any, Iterable, Iterator
 from network import strict_json
 
 LIMIT = 1_000_000
 
 
-def read_json(path, fallback):
+def read_json(path: str | Path, fallback: Any) -> Any:
     path = Path(path)
     candidates = [path, path.with_suffix(path.suffix+'.bak')] if path.name.endswith('settings.json') else [path]
     for candidate in candidates:
@@ -25,7 +26,7 @@ def read_json(path, fallback):
     return fallback
 
 
-def save_json(path, value):
+def save_json(path: str | Path, value: Any) -> None:
     path = Path(path); path.parent.mkdir(parents=True, exist_ok=True)
     encoded = json.dumps(value, ensure_ascii=False, allow_nan=False).encode()
     if len(encoded) > LIMIT:
@@ -43,7 +44,7 @@ def save_json(path, value):
 
 
 @contextmanager
-def lock(path):
+def lock(path: Path) -> Iterator[None]:
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open('a') as stream:
         fcntl.flock(stream, fcntl.LOCK_EX | fcntl.LOCK_NB)
@@ -51,7 +52,7 @@ def lock(path):
         finally: fcntl.flock(stream, fcntl.LOCK_UN)
 
 
-def commit_settings(path, before, after):
+def commit_settings(path: Path, before: dict[str, Any], after: dict[str, Any]) -> None:
     with lock(path.parent/'.settings.lock'):
         if read_json(path, {}) != before:
             raise OSError('Preferences changed in another instance; please retry')
@@ -60,7 +61,7 @@ def commit_settings(path, before, after):
         save_json(path, after)
 
 
-def prune_weather(directory, protect=()):
+def prune_weather(directory: Path, protect: Iterable[str | Path] = ()) -> None:
     protected = {str(p) for p in protect}
     files = []
     for pattern in ('forecast-*.json', 'air-*.json'):

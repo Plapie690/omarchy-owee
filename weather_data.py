@@ -5,8 +5,25 @@ clock label never acquires a guessed UTC instant. Optional malformed readings
 become null, while malformed required axes reject the response.
 """
 import math
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
+from typing import Any, Iterable, Mapping, TypedDict, cast
+
+
+class WeatherData(TypedDict):
+    """Normalized envelope consumed by the QML client; sections allow optional readings."""
+    current: dict[str, Any]
+    hourly: dict[str, Any]
+    daily: dict[str, Any]
+    timezone: str
+    latitude: float | int | None
+    capabilities: dict[str, dict[str, Any]]
+
+
+class AirData(TypedDict):
+    """Optional enrichment envelope, independent of core weather availability."""
+    current: dict[str, Any]
+    capabilities: dict[str, dict[str, Any]]
 
 MAX_HOURS = 500
 MAX_DAYS = 20
@@ -31,19 +48,20 @@ POLLEN_FIELDS = ("alder_pollen", "birch_pollen", "grass_pollen", "mugwort_pollen
                  "olive_pollen", "ragweed_pollen")
 
 
-def _number(value, low, high, *, integer=False):
+def _number(value: object, low: float, high: float, *, integer: bool = False) -> float | int | None:
     if type(value) not in (int, float):
         return None
+    number = cast(int | float, value)
     try:
-        valid = math.isfinite(value) and low <= value <= high
+        valid = math.isfinite(number) and low <= number <= high
     except OverflowError:
         return None
-    if not valid or (integer and int(value) != value):
+    if not valid or (integer and int(number) != number):
         return None
-    return int(value) if integer else value
+    return int(number) if integer else number
 
 
-def _zone(value):
+def _zone(value: object) -> ZoneInfo:
     if not isinstance(value, str) or not value or len(value) > 80:
         raise ValueError("Invalid forecast timezone")
     try:
@@ -52,7 +70,7 @@ def _zone(value):
         raise ValueError("Invalid forecast timezone") from error
 
 
-def _local_epoch(parsed, zone):
+def _local_epoch(parsed: datetime, zone: ZoneInfo) -> int | None:
     if parsed.tzinfo is not None:
         return int(parsed.timestamp())
     candidates = set()
@@ -64,7 +82,7 @@ def _local_epoch(parsed, zone):
     return next(iter(candidates)) if len(candidates) == 1 else None
 
 
-def _instant(value, zone):
+def _instant(value: object, zone: ZoneInfo) -> tuple[str, int | None]:
     stamp = _number(value, 0, 7258118400)
     if stamp is not None:
         local = datetime.fromtimestamp(stamp, zone)
@@ -82,7 +100,7 @@ def _instant(value, zone):
         raise ValueError("Invalid forecast timestamp") from error
 
 
-def _axis(value, zone, limit, *, daily=False):
+def _axis(value: Any, zone: ZoneInfo, limit: int, *, daily: bool = False) -> tuple[list[str], list[int | None]]:
     if not isinstance(value, list) or not value or len(value) > limit:
         raise ValueError("Invalid or oversized forecast time axis")
     labels, stamps = [], []
@@ -110,7 +128,7 @@ def _axis(value, zone, limit, *, daily=False):
     return labels, stamps
 
 
-def _values(section, field, count, limit):
+def _values(section: Mapping[str, Any], field: str, count: int, limit: int) -> list[Any]:
     value = section.get(field)
     if isinstance(value, list) and len(value) > limit:
         raise ValueError("Oversized forecast field")
@@ -119,7 +137,7 @@ def _values(section, field, count, limit):
     return value + [None] * (count - len(value))
 
 
-def _readings(section, axes, ranges, limit):
+def _readings(section: Mapping[str, Any], axes: list[str], ranges: Mapping[str, tuple[int, int]], limit: int) -> dict[str, Any]:
     count = len(axes)
     result = {}
     for field, bounds in ranges.items():
@@ -131,7 +149,7 @@ def _readings(section, axes, ranges, limit):
     return result
 
 
-def _time_axis_source(section):
+def _time_axis_source(section: Mapping[str, Any]) -> Any:
     """Use cached UTC instants when both labels and instants are present."""
     labels = section.get("time")
     if "time_utc" not in section:
@@ -142,17 +160,17 @@ def _time_axis_source(section):
     return [instant if instant is not None else label for instant, label in zip(utc, labels)]
 
 
-def _status(values):
+def _status(values: Iterable[Any]) -> str:
     values = list(values)
     known = sum(value is not None for value in values)
     return "unavailable" if known == 0 else "available" if known == len(values) else "partial"
 
 
-def _capability(values, source="Open-Meteo"):
+def _capability(values: Iterable[Any], source: str = "Open-Meteo") -> dict[str, Any]:
     return {"status": _status(values), "source": source}
 
 
-def _solar_time(value, zone):
+def _solar_time(value: Any, zone: ZoneInfo) -> tuple[str | None, int | None]:
     if value is None or value == 0:
         return None, None
     try:
@@ -161,7 +179,7 @@ def _solar_time(value, zone):
         return None, None
 
 
-def normalize_weather(raw):
+def normalize_weather(raw: object) -> WeatherData:
     """Return sanitized data, accepting numeric API times and old ISO caches."""
     if not isinstance(raw, dict) or raw.get("error"):
         raise ValueError("Invalid weather response")
@@ -169,8 +187,8 @@ def normalize_weather(raw):
     sections = [raw.get(key) for key in ("current", "hourly", "daily")]
     if not all(isinstance(section, dict) for section in sections):
         raise ValueError("Incomplete forecast")
-    current_raw, hourly_raw, daily_raw = sections
-    current = {field: _number(current_raw.get(field), *bounds, integer=field in ("is_day", "interval"))
+    current_raw, hourly_raw, daily_raw = cast(tuple[dict[str, Any], dict[str, Any], dict[str, Any]], tuple(sections))
+    current: dict[str, Any] = {field: _number(current_raw.get(field), *bounds, integer=field in ("is_day", "interval"))
                for field, bounds in CURRENT_RANGES.items()}
     if current["temperature_2m"] is None:
         raise ValueError("Current temperature unavailable")
@@ -193,8 +211,8 @@ def normalize_weather(raw):
             "end_local": end_local.replace(tzinfo=None).isoformat(timespec="minutes"),
             "date": start_local.date().isoformat(), "hour": start_local.hour,
             "probability": probability,
-            "start_offset": int(start_local.utcoffset().total_seconds()),
-            "end_offset": int(end_local.utcoffset().total_seconds()),
+            "start_offset": int(cast(timedelta, start_local.utcoffset()).total_seconds()),
+            "end_offset": int(cast(timedelta, end_local.utcoffset()).total_seconds()),
         })
     daily = _readings(daily_raw, day_labels, DAILY_RANGES, MAX_DAYS)
     count = len(day_labels)
@@ -239,12 +257,12 @@ def normalize_weather(raw):
     }
 
 
-def normalize_air(raw):
+def normalize_air(raw: object) -> AirData:
     """Normalize optional CAMS data without inferring geographical coverage."""
     if not isinstance(raw, dict) or raw.get("error") or not isinstance(raw.get("current"), dict):
         raise ValueError("Invalid air-quality response")
     current_raw = raw["current"]
-    current = {"european_aqi": _number(current_raw.get("european_aqi"), 0, 1000),
+    current: dict[str, Any] = {"european_aqi": _number(current_raw.get("european_aqi"), 0, 1000),
                "pm2_5": _number(current_raw.get("pm2_5"), 0, 5000)}
     current.update({field: _number(current_raw.get(field), 0, 10000000) for field in POLLEN_FIELDS})
     if isinstance(raw.get("timezone"), str) and current_raw.get("time") is not None:

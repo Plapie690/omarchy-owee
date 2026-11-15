@@ -3,7 +3,7 @@
 import argparse
 import ast
 import json
-import shutil
+import os
 import subprocess
 import sys
 import time
@@ -36,6 +36,7 @@ def policies():
 def main():
     parser=argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--native',action='store_true')
+    parser.add_argument('--quality-python',type=Path,help='Python with pinned development tools installed')
     parser.add_argument('--report-dir',type=Path,default=ROOT/'reports/qualification')
     args=parser.parse_args();out=args.report_dir.resolve();out.mkdir(parents=True,exist_ok=True)
     before,_=source_digest(ROOT)
@@ -44,6 +45,14 @@ def main():
     try:
         manifest=policies();report['version']=manifest['version']
         commands=[('python',[sys.executable,'-B','-m','unittest','discover','-s','tests','-v'])]
+        if args.quality_python:
+            quality=str(args.quality_python.absolute())
+            os.environ['COVERAGE_FILE']=str(out/'.coverage')
+            commands += [('lint',[quality,'-m','ruff','check','.']),
+                         ('types',[quality,'-m','mypy']),
+                         ('branches',[quality,'-m','coverage','run','-m','unittest','discover','-s','tests']),
+                         ('branch-report',[quality,'-m','coverage','report']),
+                         ('branch-xml',[quality,'-m','coverage','xml','-o',str(out/'coverage.xml')])]
         if args.native:
             commands += [('manifest',['omarchy','plugin','validate',str(ROOT)]),
                 ('qml',['qmllint','-I','/usr/share/omarchy/shell',*[str(p) for p in sorted(ROOT.glob('*.qml'))]]),

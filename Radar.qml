@@ -19,6 +19,9 @@ Rectangle {
   property var pending: null
   signal forecastRequested()
   property string coverageState: "unknown"
+  property int imageRevision: 0
+  readonly property bool imageReady: frameImageState(false)
+  readonly property bool imageError: frameImageState(true)
   readonly property bool projectionUnsupported: radar.status === "unsupported" && radar.reason === "projection_limit"
   readonly property var coverageTiles: Array.isArray(radar.coverage_tiles) ? radar.coverage_tiles : []
   readonly property var frames: Array.isArray(radar.frames) ? radar.frames : []
@@ -35,6 +38,16 @@ Rectangle {
   color: soft
 
   function localSource(value) { return typeof value === "string" && value.length < 4096 && value.indexOf("file:///") === 0 ? value : "" }
+  function frameImageState(errors) {
+    if(imageRevision<0 || !frameImages || frameIndex>=frames.length || !frames.length || !Array.isArray(frames[frameIndex].tiles) || !frameImages.count) return false
+    for(var i=0;i<frameImages.count;i++) {
+      var image=frameImages.itemAt(i)
+      if(errors && image && image.status===Image.Error)return true
+      if(!errors && (!image || image.status!==Image.Ready))return false
+    }
+    return !errors && frameImages.count===frames[frameIndex].tiles.length
+  }
+  onImageErrorChanged: if(imageError) Qt.callLater(function(){if(root.imageError){root.playing=false;root.message="Radar image unavailable. Refresh to try again."}})
   function validLocal(value) { return typeof value === "string" && value.length <= 40 && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2})?(?:Z|[+-]\d{2}:\d{2})$/.test(value) && isFinite(Date.parse(value)) }
   function dateTime(frame) {
     if(!frame) return "—"
@@ -109,6 +122,8 @@ Rectangle {
 
   Process {
     id: worker
+    property bool timedOut: false
+    onRunningChanged: if(running) {timedOut=false;requestDeadline.restart()} else requestDeadline.stop()
     property string action: ""
     property string requestKey: ""
     property int requestZoom: 6
@@ -123,6 +138,7 @@ Rectangle {
     stdout: StdioCollector {
       waitForEnd: true
       onStreamFinished: {
+        if(worker.timedOut)return
         if (!text.trim()) return
         try {
           var parsed = JSON.parse(text)
@@ -145,6 +161,12 @@ Rectangle {
     }
   }
   Timer {
+    id: requestDeadline
+    objectName: "radar-request-deadline"
+    interval: 50000
+    onTriggered: {worker.timedOut=true;root.pending=null;worker.running=false;root.playing=false;root.message="Radar request timed out. Please try again."}
+  }
+  Timer {
     interval: 600000
     repeat: true
     running: root.active && root.radarEnabled && root.settingsLoaded
@@ -153,7 +175,7 @@ Rectangle {
   Timer {
     interval: 800
     repeat: true
-    running: root.active && root.radarEnabled && root.playing && root.frames.length > 1 && Commons.Style.duration(1) > 0
+    running: root.active && root.radarEnabled && root.playing && root.imageReady && root.frames.length > 1 && Commons.Style.duration(1) > 0
     onTriggered: root.frameIndex = (root.frameIndex + 1) % root.frames.length
   }
 
@@ -212,7 +234,9 @@ Rectangle {
             }
           }
           Repeater {
+            id: frameImages
             model: root.radar.tiles || []
+            onCountChanged: root.imageRevision++
             delegate: Image {
               required property var modelData
               required property int index
@@ -220,6 +244,7 @@ Rectangle {
               source: root.frames.length > root.frameIndex && Array.isArray(root.frames[root.frameIndex].tiles) ? root.localSource(root.frames[root.frameIndex].tiles[index]) : ""
               opacity: 0.8; asynchronous: false
               sourceSize.width: 256; sourceSize.height: 256
+              onStatusChanged: root.imageRevision++
             }
           }
           Repeater {
@@ -256,13 +281,13 @@ Rectangle {
           Rectangle {
             anchors.centerIn: parent; width: 12; height: 12; radius: 6
             color: Commons.Color.accent; border.color: "white"; border.width: 2
-            visible: root.frames.length > 0
+            visible: root.imageReady
           }
         }
         Rectangle {
           anchors.centerIn: parent; width: Math.min(parent.width - 24, status.implicitWidth + 24); height: status.implicitHeight + 18; radius: Commons.Style.cornerRadius
           color: Commons.Color.background
-          visible: root.busy || !root.frames.length
+          visible: root.busy || !root.imageReady
           PText { id: status; anchors.centerIn: parent; text: root.busy ? "Loading radar…" : "No image available"; font.pixelSize: Commons.Style.font.body }
         }
         Rectangle {
@@ -280,7 +305,7 @@ Rectangle {
         visible: !root.projectionUnsupported
         width: parent.width; spacing: Commons.Style.space(6)
         RadarButton { label: "‹"; accessibleLabel: "Previous image"; enabled: root.frames.length > 0; onClicked: root.step(-1) }
-        RadarButton { label: root.playing ? "Ⅱ" : "▶"; accessibleLabel: root.playing ? "Pause radar animation" : "Play radar animation"; enabled: root.frames.length > 1; onClicked: root.playing = !root.playing }
+        RadarButton { label: root.playing ? "Ⅱ" : "▶"; accessibleLabel: root.playing ? "Pause radar animation" : "Play radar animation"; enabled: root.frames.length > 1 && root.imageReady; onClicked: root.playing = !root.playing }
         RadarButton { label: "›"; accessibleLabel: "Next image"; enabled: root.frames.length > 0; onClicked: root.step(1) }
         PText { width: Math.max(0, parent.width - Commons.Style.space(264)); text: root.frameTime; anchors.verticalCenter: parent.verticalCenter; font.pixelSize: Commons.Style.font.bodySmall; elide: Text.ElideRight }
         RadarButton { label: "−"; accessibleLabel: "Zoom out"; enabled: root.zoom > 3; onClicked: root.configure({zoom: root.zoom - 1}) }
