@@ -12,9 +12,12 @@ Item {
   property color accent: Commons.Color.accent
   property bool active: false
   property int openingSerial: 0
+  // A negative value retains standalone use; panel sections share one clock.
+  property real openingProgress: -1
+  readonly property bool sharedOpening: isFinite(openingProgress) && openingProgress >= 0
   readonly property string condition: WeatherModel.family(code)
   readonly property bool motionEnabled: Commons.Style.duration(1) > 0
-  readonly property bool openingRunning: introduction.running
+  readonly property bool openingRunning: sharedOpening ? active && motionEnabled && condition !== "unknown" && openingProgress < 1 : introduction.running
   readonly property bool motionRunning: introduction.running || drift.running || precipitation.running || conditionFade.running
   readonly property bool hasCloud: condition !== "clear" && condition !== "unknown"
   readonly property bool hasCelestial: condition === "clear" || condition === "mostlyClear" || condition === "partlyCloudy"
@@ -46,7 +49,11 @@ Item {
     if (!drift.running) drift.start()
     if ((wet || snowy) && !precipitation.running) precipitation.start()
     if (!wet && !snowy) precipitation.stop()
-    if (playedSerial !== openingSerial) {
+    if (sharedOpening) {
+      introduction.stop()
+      playedSerial = openingSerial
+      entrance = Math.max(0, Math.min(1, openingProgress))
+    } else if (playedSerial !== openingSerial) {
       playedSerial = openingSerial
       entrance = 0
       introduction.restart()
@@ -62,6 +69,7 @@ Item {
   }
   onActiveChanged: synchronize()
   onOpeningSerialChanged: synchronize()
+  onOpeningProgressChanged: synchronize()
   onMotionEnabledChanged: synchronize()
   onConditionChanged: changeCondition()
   onNightChanged: changeCondition()
@@ -71,7 +79,7 @@ Item {
   NumberAnimation {
     id: introduction
     target: sky; property: "entrance"; from: 0; to: 1
-    duration: Commons.Style.duration(1100); easing.type: Easing.OutCubic
+    duration: Commons.Style.duration(220); easing.type: Easing.OutCubic
   }
   NumberAnimation {
     id: drift

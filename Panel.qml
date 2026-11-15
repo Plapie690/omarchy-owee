@@ -12,7 +12,7 @@ Panel {
   id: root
   moduleName: "owee.weather"
   manageIpc: false
-  readonly property string pluginVersion: "1.3.0-rc.2"
+  readonly property string pluginVersion: "1.3.0-rc.3"
   property string activePage: "weather"
   property string mapPage: "radar"
   property bool measurementHelp: false
@@ -70,15 +70,55 @@ Panel {
   readonly property var cities: result.cities || []
   readonly property var cardOrder: result.cards || ["wind", "humidity", "uv", "sun", "pressure", "visibility", "precipitation", "air", "pollen"]
   readonly property var hiddenCards: result.hidden_cards || []
-  readonly property bool autoRefresh: result.auto_refresh !== false
-  readonly property string unit: result.unit === "F" ? "F" : "C"
+  readonly property bool autoRefresh: typeof setting("autoRefresh", null) === "boolean" ? setting("autoRefresh", true) : result.auto_refresh !== false
+  readonly property string unit: temperatureMode === "system" ? (systemLocale.measurementSystem === Locale.ImperialUSSystem ? "F" : "C") : temperatureMode
   readonly property var notificationConfig: result.notifications || ({})
   readonly property string cityName: result.city && result.city.name ? result.city.name : "Lyon"
-  readonly property string label: primaryCurrent ? icon(primaryCurrent.weather_code, primaryCurrent.is_day) + " " + deg(primaryCurrent.temperature_2m) + "°" : "☁ —"
-  readonly property string barTemperature: primaryCurrent && typeof primaryCurrent.temperature_2m === "number" && isFinite(primaryCurrent.temperature_2m) ? deg(primaryCurrent.temperature_2m) + "°" : "—"
+  readonly property string label: primaryCurrent ? icon(primaryCurrent.weather_code, primaryCurrent.is_day) + " " + weatherFormats.number(deg(primaryCurrent.temperature_2m)) + "°" : "☁ —"
+  readonly property string barTemperature: primaryCurrent && typeof primaryCurrent.temperature_2m === "number" && isFinite(primaryCurrent.temperature_2m) ? weatherFormats.number(deg(primaryCurrent.temperature_2m)) + "°" : "—"
   readonly property color mutedText: Qt.rgba(Commons.Color.foreground.r, Commons.Color.foreground.g, Commons.Color.foreground.b, 0.72)
   readonly property color cardColor: Qt.rgba(Commons.Color.foreground.r, Commons.Color.foreground.g, Commons.Color.foreground.b, 0.075)
   readonly property color accentSoft: Qt.rgba(Commons.Color.accent.r, Commons.Color.accent.g, Commons.Color.accent.b, 0.16)
+  readonly property string temperatureMode: ["C","F","system"].indexOf(setting("temperatureMode", "")) >= 0 ? setting("temperatureMode", "") : result.unit === "F" ? "F" : "C"
+  readonly property string formatMode: setting("formatMode", "english") === "system" ? "system" : "english"
+  readonly property var systemLocale: Qt.locale(Commons.I18n.formatLocale)
+  WeatherFormats { id: weatherFormats; mode: root.formatMode }
+  MotionCoordinator { id: openingMotion; active: root.opened; openingSerial: root.openingSerial }
+  onSettingsChanged: Qt.callLater(syncBackendPreferences)
+  onUnitChanged: Qt.callLater(syncBackendPreferences)
+  onAutoRefreshChanged: Qt.callLater(syncBackendPreferences)
+  onResultChanged: { Qt.callLater(seedNativePreferences); Qt.callLater(syncBackendPreferences) }
+
+  function canPersistNativePreferences() {
+    return bar && bar.shell && typeof bar.shell.updateEntryInline === "function"
+  }
+  function persistNativePreferences(values) {
+    var entry = Object.assign({}, settings || {}, {id: moduleName}, values)
+    if (canPersistNativePreferences()) bar.shell.updateEntryInline(moduleName, entry)
+    settings = entry
+    if (hostWidget) hostWidget.settings = entry
+  }
+  function seedNativePreferences() {
+    if (!result.city || !result.unit || setting("preferencesVersion", 0) === 1 || !canPersistNativePreferences()) return
+    var savedMode = setting("temperatureMode", "")
+    var savedAuto = setting("autoRefresh", null)
+    persistNativePreferences({preferencesVersion: 1,
+      temperatureMode: ["C","F","system"].indexOf(savedMode)>=0 ? savedMode : result.unit === "F" ? "F" : "C",
+      formatMode: setting("formatMode", "english") === "system" ? "system" : "english",
+      autoRefresh: typeof savedAuto === "boolean" ? savedAuto : result.auto_refresh !== false})
+  }
+  function setTemperatureMode(value) {
+    if (["C","F","system"].indexOf(value) >= 0) persistNativePreferences({temperatureMode:value})
+  }
+  function setFormatMode(value) {
+    if (["english","system"].indexOf(value) >= 0) persistNativePreferences({formatMode:value})
+  }
+  function setAutoRefresh(value) { persistNativePreferences({autoRefresh:value === true}) }
+  function syncBackendPreferences() {
+    if (!result.city || !result.unit || worker.running || pendingActions.length) return
+    if (result.unit !== unit) { run("unit",unit); return }
+    if ((result.auto_refresh !== false) !== autoRefresh) run("auto",autoRefresh?"on":"off")
+  }
   readonly property string scriptPath: decodeURIComponent(Qt.resolvedUrl("weather.py").toString().replace(/^file:\/\//, ""))
 
   function icon(code, day) {
@@ -94,15 +134,10 @@ Panel {
     return WeatherModel.description(code)
   }
   function deg(v) { return Math.round(unit === "F" ? v * 9 / 5 + 32 : v) }
-  function degrees(arr, i) { return arr && arr[i] !== undefined && arr[i] !== null ? deg(arr[i]) + "°" : "—" }
-  function value(arr, i, suffix) { return arr && arr[i] !== undefined && arr[i] !== null ? Math.round(arr[i]) + suffix : "—" }
-  function time(s) { return s && s.length >= 16 ? s.substring(11,16) : "—" }
-  function date(s) {
-    if (!s) return "—"
-    var parts = s.split("-")
-    if (parts.length !== 3) return s
-    return Qt.locale("en_GB").dayName(new Date(Number(parts[0]), Number(parts[1])-1, Number(parts[2])).getDay(), Locale.ShortFormat)
-  }
+  function degrees(arr, i) { return arr && arr[i] !== undefined && arr[i] !== null ? weatherFormats.number(deg(arr[i])) + "°" : "—" }
+  function value(arr, i, suffix) { return arr && arr[i] !== undefined && arr[i] !== null ? weatherFormats.number(arr[i]) + suffix : "—" }
+  function time(s) { return weatherFormats.cityTime(s) }
+  function date(s) { var parts=weatherFormats.dateParts(s); return parts ? weatherFormats.locale.dayName(parts.weekday, Locale.ShortFormat) : "—" }
   function hourStart() {
     if (!hourly || !hourly.time || !current || !current.time) return 0
     if(typeof current.time_utc==="number" && Array.isArray(hourly.time_utc)) {
@@ -113,13 +148,12 @@ Panel {
     return 0
   }
   function barDegrees() {
-    return current && typeof current.temperature_2m==="number" && isFinite(current.temperature_2m) ? deg(current.temperature_2m)+"°" : "—"
+    return current && typeof current.temperature_2m==="number" && isFinite(current.temperature_2m) ? weatherFormats.number(deg(current.temperature_2m))+"°" : "—"
   }
   function freshness() {
     if (loading) return "Updating…"
     if (!result.updated) return "Waiting for data"
-    var date=new Date(result.updated*1000)
-    return result.stale===true ? "Offline · "+Qt.formatDateTime(date,"dd/MM hh:mm") : "Updated at "+Qt.formatDateTime(date,"hh:mm")
+    return result.stale===true ? "Offline · "+weatherFormats.instant(result.updated) : "Updated at "+weatherFormats.instant(result.updated)
   }
   function bulletin() {
     var probabilities=hourly ? hourly.precipitation_probability : null
@@ -129,12 +163,12 @@ Panel {
       if(typeof v!=="number" || !isFinite(v)) continue
       peak=peak===null?v:Math.max(peak,v)
     }
-    if(peak!==null) return "Next 6 hours · rain / snow chance up to "+Math.round(peak)+"%"
+    if(peak!==null) return "Next 6 hours · rain / snow chance up to "+weatherFormats.number(peak)+"%"
     var today=daily && daily.precipitation_probability_max ? daily.precipitation_probability_max[0] : null
-    return typeof today==="number" && isFinite(today) ? "Precipitation chance today: "+Math.round(today)+" %" : "Additional forecast unavailable."
+    return typeof today==="number" && isFinite(today) ? "Precipitation chance today: "+weatherFormats.number(today)+" %" : "Additional forecast unavailable."
   }
   function cityKey(c) { return c && c.latitude != null && c.longitude != null ? Number(c.latitude).toFixed(5) + "," + Number(c.longitude).toFixed(5) : "" }
-  function number(v, suffix) { return v === undefined || v === null || !isFinite(v) ? "—" : Math.round(v) + suffix }
+  function number(v, suffix) { return v === undefined || v === null || !isFinite(v) ? "—" : weatherFormats.number(v) + suffix }
   function pollenText() {
     var a = [air.alder_pollen, air.birch_pollen, air.grass_pollen, air.mugwort_pollen, air.olive_pollen, air.ragweed_pollen]
     var valid = a.filter(function(v) { return v !== null && v !== undefined && isFinite(v) })
@@ -157,8 +191,8 @@ Panel {
       uv: {title:"UV index", value:daily ? value(daily.uv_index_max,0,"") : "—", detail:"Today’s peak · forecast", reading:daily && daily.uv_index_max ? daily.uv_index_max[0] : null},
       sun: {title:"Sunrise / sunset", value:daily && daily.solar_state && daily.solar_state[0]==="polar_night"?"Polar night":daily && daily.solar_state && daily.solar_state[0]==="polar_day"?"Polar day":(daily && daily.sunrise ? time(daily.sunrise[0]) : "—")+" / "+(daily && daily.sunset ? time(daily.sunset[0]) : "—"), detail:"City local time", progress:sunProgress()},
       pressure: {title:"Pressure", value:current ? number(current.surface_pressure," hPa") : "—", detail:"At ground level", reading:current ? current.surface_pressure : null},
-      visibility: {title:"Visibility", value:hourly && hourly.visibility && hourly.visibility[hourStart()] != null ? (hourly.visibility[hourStart()]/1000).toFixed(1) + " km" : "—", detail:"Viewing distance · forecast"},
-      precipitation: {title:"Precipitation", value:current && typeof current.precipitation==="number" && isFinite(current.precipitation) && current.precipitation>=0 ? current.precipitation.toFixed(current.precipitation<10?1:0)+" mm" : "—", detail:"Recent rain / snow amount"},
+      visibility: {title:"Visibility", value:hourly && hourly.visibility && hourly.visibility[hourStart()] != null ? weatherFormats.number(hourly.visibility[hourStart()]/1000,1) + " km" : "—", detail:"Viewing distance · forecast"},
+      precipitation: {title:"Precipitation", value:current && typeof current.precipitation==="number" && isFinite(current.precipitation) && current.precipitation>=0 ? weatherFormats.number(current.precipitation,current.precipitation<10?1:0)+" mm" : "—", detail:"Recent rain / snow amount"},
       air: {title:"Air quality", value:number(air.european_aqi,""), detail:WeatherModel.airCategory(air.european_aqi)+" · EU AQI"},
       pollen: {title:"Pollen", value:pollenText(), detail:"Highest type · forecast"}
     }
@@ -238,6 +272,7 @@ Panel {
     property string action: ""
     onRunningChanged: if(running)weatherDeadline.restart();else weatherDeadline.stop()
     onExited: {
+      if (!root.errorText) Qt.callLater(root.syncBackendPreferences)
       root.loading = false
       if (root.pendingActions.length) {
         var queue = root.pendingActions.slice()
@@ -464,36 +499,46 @@ Panel {
             id: weatherView
             width: parent.width; spacing: Style.space(20)
             visible: root.activePage === "weather" && !root.searching
-            Rectangle {
-              id: hero
-              objectName: "weather-hero"
-              width: parent.width; height: Style.space(204)
-              radius: Style.cornerRadius; color: root.accentSoft
-              Column {
-                anchors.left: parent.left; anchors.leftMargin: Style.space(16)
-                anchors.top: parent.top; anchors.topMargin: Style.space(14)
-                width: parent.width*0.56; spacing: Style.space(3)
-                PText { width: parent.width; text: root.current ? "Now · "+root.description(root.current.weather_code) : root.loading ? "Refreshing…" : "Weather unavailable"; font.pixelSize: Style.font.subtitle; font.bold: true; elide: Text.ElideRight }
-                PText { text: root.barDegrees(); font.pixelSize: Style.font.displayLarge*2; font.weight: Font.Light }
-                PText { width: parent.width; text: root.current && root.current.apparent_temperature!=null ? "Feels like " + root.deg(root.current.apparent_temperature) + "°"+root.unit : "Feels-like temperature unavailable"; color: root.mutedText; font.pixelSize: Style.font.bodySmall }
-                PText { text: "Low " + root.degrees(root.daily?root.daily.temperature_2m_min:null,0) + "   High " + root.degrees(root.daily?root.daily.temperature_2m_max:null,0); color: root.mutedText; font.pixelSize: Style.font.bodySmall }
-              }
-              Sky {
-                anchors.right: parent.right; anchors.rightMargin: Style.space(12)
-                y: Style.space(8); width: Math.min(Style.space(172),parent.width*0.4); height: width*0.8
-                code: root.current ? root.current.weather_code : null
-                night: !!root.current && root.current.is_day===0
-                openingSerial: root.openingSerial
-                active: root.opened && root.activePage === "weather" && !root.searching && weatherView.y+hero.y+hero.height>vertical.contentY && weatherView.y+hero.y<vertical.contentY+vertical.height
-              }
-              PText {
-                anchors.left: parent.left; anchors.right: parent.right; anchors.bottom: parent.bottom
-                anchors.margins: Style.space(16); text: root.bulletin(); wrapMode: Text.WordWrap
-                maximumLineCount: 2; elide: Text.ElideRight; font.pixelSize: Style.font.bodySmall
+            AnimatedSection {
+              width: parent.width; progress: openingMotion.progress; start: 0
+              Rectangle {
+                id: hero
+                objectName: "weather-hero"
+                width: parent.width; height: Style.space(204)
+                radius: Style.cornerRadius; color: root.accentSoft
+                Column {
+                  anchors.left: parent.left; anchors.leftMargin: Style.space(16)
+                  anchors.top: parent.top; anchors.topMargin: Style.space(14)
+                  width: parent.width*0.56; spacing: Style.space(3)
+                  PText { width: parent.width; text: root.current ? "Now · "+root.description(root.current.weather_code) : root.loading ? "Refreshing…" : "Weather unavailable"; font.pixelSize: Style.font.subtitle; font.bold: true; elide: Text.ElideRight }
+                  PText { text: root.barDegrees(); font.pixelSize: Style.font.displayLarge*2; font.weight: Font.Light }
+                  PText { width: parent.width; text: root.current && root.current.apparent_temperature!=null ? "Feels like " + weatherFormats.number(root.deg(root.current.apparent_temperature)) + "°"+root.unit : "Feels-like temperature unavailable"; color: root.mutedText; font.pixelSize: Style.font.bodySmall }
+                  PText { text: "Low " + root.degrees(root.daily?root.daily.temperature_2m_min:null,0) + "   High " + root.degrees(root.daily?root.daily.temperature_2m_max:null,0); color: root.mutedText; font.pixelSize: Style.font.bodySmall }
+                }
+                Sky {
+                  anchors.right: parent.right; anchors.rightMargin: Style.space(12)
+                  y: Style.space(8); width: Math.min(Style.space(172),parent.width*0.4); height: width*0.8
+                  code: root.current ? root.current.weather_code : null
+                  night: !!root.current && root.current.is_day===0
+                  openingSerial: root.openingSerial
+                  openingProgress: openingMotion.progress
+                  active: root.opened && root.activePage === "weather" && !root.searching && weatherView.y+hero.y+hero.height>vertical.contentY && weatherView.y+hero.y<vertical.contentY+vertical.height
+                }
+                PText {
+                  anchors.left: parent.left; anchors.right: parent.right; anchors.bottom: parent.bottom
+                  anchors.margins: Style.space(16); text: root.bulletin(); wrapMode: Text.WordWrap
+                  maximumLineCount: 2; elide: Text.ElideRight; font.pixelSize: Style.font.bodySmall
+                }
               }
             }
-            HourlyForecast { objectName: "hourly-forecast"; width: parent.width; hourly: root.hourly; current: root.current; startIndex: root.hourStart(); unit: root.unit; stale: root.result.stale===true; scrollView: vertical }
-            DailyForecast { objectName: "daily-forecast"; width: parent.width; daily: root.daily; hourly: root.hourly; currentDate: root.current && root.current.time ? String(root.current.time).slice(0,10) : ""; unit: root.unit; stale: root.result.stale===true }
+            AnimatedSection {
+              width: parent.width; progress: openingMotion.progress; start: 0.08
+              HourlyForecast { objectName: "hourly-forecast"; width: parent.width; formats: weatherFormats; hourly: root.hourly; current: root.current; startIndex: root.hourStart(); unit: root.unit; stale: root.result.stale===true; scrollView: vertical }
+            }
+            AnimatedSection {
+              width: parent.width; progress: openingMotion.progress; start: 0.16
+              DailyForecast { objectName: "daily-forecast"; width: parent.width; formats: weatherFormats; daily: root.daily; hourly: root.hourly; currentDate: root.current && root.current.time ? String(root.current.time).slice(0,10) : ""; unit: root.unit; stale: root.result.stale===true }
+            }
           }
           Column {
             width: parent.width; spacing: Style.space(16)
@@ -505,13 +550,13 @@ Panel {
             }
             PText { width: parent.width; text: root.mapPage==="radar"?"Observed rain and snow · recent hours":"Predicted weather · next 24 hours"; color: root.mutedText; font.pixelSize: Style.font.bodySmall; wrapMode: Text.WordWrap }
             Radar {
-              width: parent.width; city: Object.assign({},root.result.city || {},{timezone:root.result.data?root.result.data.timezone:""})
+              formats: weatherFormats; width: parent.width; city: Object.assign({},root.result.city || {},{timezone:root.result.data?root.result.data.timezone:""})
               onForecastRequested: {if(Math.abs(Number(root.result.city.latitude))>85.05112878)root.showPage("weather");else{root.mapPage="forecast";scope.resetForOpening()}}
               visible: root.mapPage==="radar"
               active: root.opened && root.activePage==="maps" && root.mapPage==="radar" && !root.searching
             }
             ForecastMap {
-              width: parent.width; city: Object.assign({},root.result.city || {},{timezone:root.result.data?root.result.data.timezone:""})
+              formats: weatherFormats; width: parent.width; city: Object.assign({},root.result.city || {},{timezone:root.result.data?root.result.data.timezone:""})
               visible: root.mapPage==="forecast"
               active: root.opened && root.activePage==="maps" && root.mapPage==="forecast" && !root.searching
             }
@@ -520,12 +565,18 @@ Panel {
             width: parent.width; spacing: Style.space(16)
             visible: root.activePage==="settings" && !root.searching
             PText { text: "Settings"; font.pixelSize: Style.font.heading; font.bold: true }
-            Ui.Toggle { width: parent.width; label: "Automatic refresh"; checked: root.autoRefresh; enabled: !root.loading; onClicked: root.run("auto",root.autoRefresh?"off":"on") }
+            Ui.Toggle { width: parent.width; label: "Automatic refresh"; checked: root.autoRefresh; enabled: !root.loading; onClicked: root.setAutoRefresh(!root.autoRefresh) }
             Row {
               width: parent.width; spacing: Style.space(12)
               PText { anchors.verticalCenter: parent.verticalCenter; width: Math.max(0,parent.width-units.implicitWidth-Style.space(12)); text: "Temperatures"; font.pixelSize: Style.font.body }
-              Ui.ButtonGroup { id: units; objectName: "unit-selector"; options: [{value:"C",label:"°C"},{value:"F",label:"°F"}]; value: root.unit; onChanged: function(value) {root.run("unit",value)} }
+              Ui.ButtonGroup { id: units; objectName: "unit-selector"; options: [{value:"system",label:"System"},{value:"C",label:"°C"},{value:"F",label:"°F"}]; value: root.temperatureMode; onChanged: function(value) {root.setTemperatureMode(value)} }
             }
+            Row {
+              width: parent.width; spacing: Style.space(12)
+              PText { anchors.verticalCenter: parent.verticalCenter; width: Math.max(0,parent.width-formatsSelector.implicitWidth-Style.space(12)); text: "Date and number formats"; font.pixelSize: Style.font.body }
+              Ui.ButtonGroup { id: formatsSelector; objectName: "format-selector"; options: [{value:"english",label:"English"},{value:"system",label:"System"}]; value: root.formatMode; onChanged: function(value) {root.setFormatMode(value)} }
+            }
+            PText { width: parent.width; text: "Interface stays in English. Forecast times follow the selected city."; color: root.mutedText; wrapMode: Text.WordWrap; font.pixelSize: Style.font.bodySmall }
             Ui.Button { objectName: "edit-cards"; text: root.editingCards?"Done customizing":"Customize cards"; focusable: true; bordered: true; onClicked: root.editingCards=!root.editingCards }
           }
           Column {
@@ -541,15 +592,18 @@ Panel {
                 delegate: PText { required property string modelData; width: parent.width; text: root.card(modelData).title+": "+root.card(modelData).explanation; color: root.mutedText; font.pixelSize: Style.font.bodySmall; wrapMode: Text.WordWrap }
               }
             }
-            WeatherCards {
-              width: parent.width; order: root.cardOrder; hidden: root.hiddenCards
-              editing: root.activePage==="settings" && root.editingCards
-              busy: root.loading
-              active: root.opened && !root.searching && (root.activePage==="weather" || root.activePage==="settings" && root.editingCards)
-              scrollView: vertical
-              cardInfo: function(id) {return root.card(id)}
-              onReorderRequested: function(order) {root.run("cards",JSON.stringify({op:"reorder",order:order}))}
-              onToggleRequested: function(id) {root.run("cards",JSON.stringify({op:"toggle",id:id}))}
+            AnimatedSection {
+              width: parent.width; progress: openingMotion.progress; start: 0.24
+              WeatherCards {
+                width: parent.width; order: root.cardOrder; hidden: root.hiddenCards
+                editing: root.activePage==="settings" && root.editingCards
+                busy: root.loading
+                active: root.opened && !root.searching && (root.activePage==="weather" || root.activePage==="settings" && root.editingCards)
+                scrollView: vertical
+                cardInfo: function(id) {return root.card(id)}
+                onReorderRequested: function(order) {root.run("cards",JSON.stringify({op:"reorder",order:order}))}
+                onToggleRequested: function(id) {root.run("cards",JSON.stringify({op:"toggle",id:id}))}
+              }
             }
           }
           Column {

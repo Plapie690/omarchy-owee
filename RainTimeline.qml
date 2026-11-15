@@ -4,6 +4,7 @@ import "WeatherModel.js" as WeatherModel
 
 Item {
   id: root
+  property var formats: null
   property var hours: []
   property var hourDetails: []
   property var dailyProbability: null
@@ -24,18 +25,21 @@ Item {
     for(var i=0;i<24;i++) if(slots[i]!==null && (best===null || slots[i]>best.chance)) best={hour:i,chance:slots[i]}
     return best
   }
+  function clock(hour) { return formats ? formats.clockHour(hour) : WeatherModel.clock(hour) }
+  function cityClock(value) { return formats ? formats.cityTime(String(value)) : String(value).slice(11,16) }
+  function chance(value) { return formats ? formats.number(value) : String(value) }
   function describe() {
     if(selectedHour>=0 && selectedHour<24) {
       var entries=hourDetails[selectedHour]||[];
-      if(entries.length && entries[0].clock_gap)return WeatherModel.clock(selectedHour)+" · skipped by clock change";
-      if(entries.length) return entries.map(function(entry){return String(entry.start_local).slice(11,16)+"–"+String(entry.end_local).slice(11,16)+(entries.length>1 || entry.start_offset!==entry.end_offset?" "+WeatherModel.offsetLabel(entry.start_offset)+" / "+WeatherModel.offsetLabel(entry.end_offset):"")+" · "+(entry.probability===null?"no hourly data":entry.probability+"% chance")}).join("; ");
+      if(entries.length && entries[0].clock_gap)return clock(selectedHour)+" · skipped by clock change";
+      if(entries.length) return entries.map(function(entry){return cityClock(entry.start_local)+"–"+cityClock(entry.end_local)+(entries.length>1 || entry.start_offset!==entry.end_offset?" "+WeatherModel.offsetLabel(entry.start_offset)+" / "+WeatherModel.offsetLabel(entry.end_offset):"")+" · "+(entry.probability===null?"no hourly data":chance(entry.probability)+"% chance")}).join("; ");
       var p=slots[selectedHour]
-      return WeatherModel.clock(selectedHour)+"–"+WeatherModel.clock(selectedHour+1)+" · "+(p===null?"no hourly data":p+"% chance")
+      return clock(selectedHour)+"–"+clock(selectedHour+1)+" · "+(p===null?"no hourly data":chance(p)+"% chance")
     }
-    if(!peak) return typeof dailyProbability==="number"&&isFinite(dailyProbability)?"Day chance: up to "+Math.max(0,Math.min(100,Math.round(dailyProbability)))+"% · hourly detail unavailable":"Hourly rain / snow forecast unavailable"
+    if(!peak) return typeof dailyProbability==="number"&&isFinite(dailyProbability)?"Day chance: up to "+chance(Math.max(0,Math.min(100,Math.round(dailyProbability))))+"% · hourly detail unavailable":"Hourly rain / snow forecast unavailable"
     if(peak.chance===0) return "Rain / snow chance: 0% in available hours"
-    if((hourDetails[peak.hour]||[]).length>1)return "Peak chance: "+peak.chance+"% · "+WeatherModel.clock(peak.hour)+" (repeated clock hour)";
-    return "Peak chance: "+peak.chance+"% · "+WeatherModel.clock(peak.hour)+"–"+WeatherModel.clock(peak.hour+1)
+    if((hourDetails[peak.hour]||[]).length>1)return "Peak chance: "+chance(peak.chance)+"% · "+clock(peak.hour)+" (repeated clock hour)";
+    return "Peak chance: "+chance(peak.chance)+"% · "+clock(peak.hour)+"–"+clock(peak.hour+1)
   }
   function pick(x) { selectedHour=Math.max(0,Math.min(23,Math.floor(x/Math.max(1,band.width)*24))) }
   function step(delta) { selectedHour=Math.max(0,Math.min(23,(selectedHour<0?(peak?peak.hour:0):selectedHour)+delta)) }

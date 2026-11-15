@@ -6,6 +6,7 @@ import qs.Ui as Ui
 
 Rectangle {
   id: root
+  property var formats: null
   property var city: ({})
   property bool active: false
   property bool detailsExpanded: false
@@ -51,8 +52,9 @@ Rectangle {
   function validLocal(value) { return typeof value === "string" && value.length <= 40 && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2})?(?:Z|[+-]\d{2}:\d{2})$/.test(value) && isFinite(Date.parse(value)) }
   function dateTime(frame) {
     if(!frame) return "—"
+    if(validLocal(frame.local_time) && formats) return formats.dayTime(frame.local_time)
     if(validLocal(frame.local_time)) return frame.local_time.slice(8,10)+"/"+frame.local_time.slice(5,7)+" "+frame.local_time.slice(11,16)
-    return typeof frame.time === "number" && isFinite(frame.time) ? new Date(frame.time*1000).toLocaleString(Qt.locale("en_GB"),"dd/MM hh:mm") : "—"
+    return typeof frame.time === "number" && isFinite(frame.time) ? (formats ? formats.instant(frame.time) : new Date(frame.time*1000).toLocaleString(Qt.locale("en_GB"),"dd/MM hh:mm")) : "—"
   }
   function prepareCoverage() {
     coverageState="unknown"

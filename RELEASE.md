@@ -9,7 +9,7 @@ https://plugins.omarchy.org/publish.html
 2. Run `python3 -B qa/qualify.py --native --quality-python /path/to/dev-venv/bin/python --report-dir reports/qualification`.
    Run `qa/international.py` and `qa/live_maps.py`; retain their JSON reports.
 3. Freeze code, then run `qa/endurance.py --report-dir
-   reports/endurance-1.3.0-rc.2`. It requires 43,200 real elapsed seconds and at
+   reports/endurance-1.3.0-rc.3`. It requires 43,200 real elapsed seconds and at
    least 1,000 same-process cycles. Reports preserve failure evidence. A source
    change invalidates the run; rerun fast gates and start a new report directory.
 4. `python3 -B tools/promote.py` verifies evidence without changing code.

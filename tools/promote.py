@@ -32,7 +32,7 @@ def evidence():
     native=reports.get('native',{})
     if native.get('kind')!='native':failures.append('native GUI gates required')
     checks = {item.get('name') for item in native.get('checks',[]) if item.get('exit_code') == 0}
-    if not {'lint','types','branches'}.issubset(checks):failures.append('quality gates required')
+    if not {'lint','types','branches','qml','runtime','motion','formats','preferences','preferences150'}.issubset(checks):failures.append('quality gates required')
     endurance=reports.get('endurance',{})
     if not endurance.get('qualified') or endurance.get('elapsed_seconds',0)<43200 or endurance.get('completed_cycles',0)<1000:
         failures.append('twelve real hours and 1000 cycles required')

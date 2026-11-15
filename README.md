@@ -5,7 +5,7 @@ local-time rain timelines, animated past radar, forecast maps and opt-in
 notifications. Independent of Google and Omarchy; Pixel Weather inspired the
 visual direction. English UI. MIT code, separately licensed data.
 
-**Current build: 1.3.0-rc.2 — release candidate, not yet declared stable.**
+**Current build: 1.3.0-rc.3 — release candidate, not yet declared stable.**
 A real twelve-hour endurance report is required before stable promotion.
 
 ## Requirements
@@ -80,7 +80,7 @@ python3 -B qa/qualify.py                         # offline CI gates
 python3 -B qa/qualify.py --native                # actual Omarchy runtime/UI gates
 python3 -B qa/international.py                  # bounded live global probes
 python3 -B qa/live_maps.py                      # bounded live map contracts
-python3 -B qa/endurance.py --report-dir reports/endurance-1.3.0-rc.2
+python3 -B qa/endurance.py --report-dir reports/endurance-1.3.0-rc.3
 python3 -B tools/promote.py                     # checks gates; does not publish
 ```
 
@@ -103,3 +103,20 @@ omarchy plugin remove owee.weather
 
 User state and migration backups remain for recovery. See PRIVACY.md for their
 locations. Deleting those directories is a separate explicit action.
+
+### Native preferences and display formats
+
+Simple display preferences (temperature mode, date/number format and automatic
+refresh) are saved in OWEE's native Omarchy widget entry. Existing Celsius or
+Fahrenheit and refresh choices are seeded from the previous settings on first
+load. Favorites, cards, notifications and cached data retain their own storage.
+
+Temperature mode offers System, Celsius and Fahrenheit. System follows the
+Omarchy format locale's measurement system, including notification temperatures.
+Date and number formats offer English (the existing default) and System. The
+interface remains English. Forecast clocks always describe the selected city,
+including repeated daylight-saving hours; the daily rain axis stays 00:00–24:00.
+
+One 220 ms opening progression coordinates the weather illustration and forecast
+sections. Native popup transitions still own opening/closing geometry. Reduced
+motion settles the content immediately, and closing stops the opening clock.

@@ -12,8 +12,76 @@ Item {
     when: windowShown
     Component { id: skyComponent; Sky { width: 160; height: 110 } }
     Component { id: iconComponent; WeatherIcon { width: 48; height: 48 } }
+    Component {
+      id: coordinatedComponent
+      Item {
+        id: coordinated
+        width: 360; height: 150
+        property alias opened: opening.active
+        property alias serial: opening.openingSerial
+        readonly property real progress: opening.progress
+        readonly property bool running: opening.running
+        readonly property int duration: opening.duration
+        property alias first: hero
+        property alias second: hourly
+        property alias sky: illustration
+        MotionCoordinator { id: opening }
+        Column {
+          width: parent.width; spacing: 12
+          AnimatedSection {
+            id: hero; width: parent.width; progress: opening.progress
+            Rectangle { width: parent.width; height: 40; color: "#91b3fa" }
+          }
+          AnimatedSection {
+            id: hourly; width: parent.width; progress: opening.progress; start: 0.2
+            Rectangle { width: parent.width; height: 40; color: "#d9dfeb" }
+          }
+        }
+        Sky { id: illustration; width: 90; height: 70; code: 61; active: opening.active; openingProgress: opening.progress }
+      }
+    }
 
     function init() { Commons.Style.animationsEnabled = true }
+
+    function test_shared_opening_clock_has_stable_layout_and_stops_on_close() {
+        var group=createTemporaryObject(coordinatedComponent,scene)
+        verify(group)
+        compare(group.progress,1);compare(group.running,false)
+        compare(group.first.height,40);compare(group.second.y,52)
+        group.opened=true
+        verify(group.running);compare(group.progress,0)
+        compare(group.first.sectionProgress,0);compare(group.second.sectionProgress,0)
+        wait(65)
+        verify(group.progress>0&&group.progress<1)
+        verify(group.first.sectionProgress>group.second.sectionProgress)
+        fuzzyCompare(group.sky.entrance,group.progress,0.0001)
+        compare(group.first.height,40);compare(group.second.y,52)
+        verify(group.duration<=240)
+        tryCompare(group,"running",false,400)
+        compare(group.progress,1);compare(group.first.opacity,1);compare(group.second.visualOffset,0)
+        group.opened=false
+        compare(group.progress,1);compare(group.first.opacity,1)
+        compare(group.running,false);compare(group.sky.motionRunning,false)
+        wait(70);compare(group.progress,1)
+        group.opened=true
+        verify(group.running);compare(group.progress,0)
+        group.opened=false
+        compare(group.progress,1);compare(group.running,false)
+    }
+
+    function test_shared_reduced_motion_is_immediate_and_does_not_replay_on_enable() {
+        Commons.Style.animationsEnabled=false
+        var group=createTemporaryObject(coordinatedComponent,scene,{opened:true,serial:1})
+        verify(group)
+        compare(group.progress,1);compare(group.running,false);compare(group.sky.motionRunning,false)
+        Commons.Style.animationsEnabled=true
+        wait(20);compare(group.progress,1);compare(group.running,false)
+        group.serial=2
+        verify(group.running);compare(group.progress,0)
+        Commons.Style.animationsEnabled=false
+        compare(group.progress,1);compare(group.running,false);compare(group.sky.motionRunning,false)
+        compare(group.first.height,40);compare(group.second.y,52)
+    }
 
     function test_wmo_data() {
         var groups = {

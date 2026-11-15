@@ -5,6 +5,7 @@ import "WeatherModel.js" as WeatherModel
 
 Column {
   id: root
+  property var formats: null
   property var daily: null
   property var hourly: null
   property string unit: "C"
@@ -16,6 +17,7 @@ Column {
   readonly property var detailsByDay: WeatherModel.rainDetails(hourly)
   readonly property color muted: Qt.rgba(Commons.Color.foreground.r, Commons.Color.foreground.g, Commons.Color.foreground.b, 0.72)
   spacing: Commons.Style.space(6)
+  function displayNumber(value) { return formats ? formats.number(value) : String(value) }
   function numeric(v) { return typeof v === "number" && isFinite(v) }
   function temperature(v) { return numeric(v) ? Math.round(unit === "F" ? v*9/5+32 : v) : null }
   function makeDays() {
@@ -26,7 +28,9 @@ Column {
       var low=temperature(daily.temperature_2m_min ? daily.temperature_2m_min[i] : null)
       var high=temperature(daily.temperature_2m_max ? daily.temperature_2m_max[i] : null)
       var probability=daily.precipitation_probability_max ? daily.precipitation_probability_max[i] : null
-      rows.push({label:WeatherModel.dayLabel(stamp, currentDate || daily.time[0], stale),
+      var label=WeatherModel.dayLabel(stamp, currentDate || daily.time[0], stale)
+      if(formats && label!=="Today" && label!=="Tomorrow")label=formats.day(stamp)
+      rows.push({label:label,
         code:daily.weather_code ? daily.weather_code[i] : null,
         low:low,high:high,probability:numeric(probability)?Math.max(0,Math.min(100,Math.round(probability))):null,
         hours:rainByDay[stamp]||[], details:detailsByDay[stamp]||[]})
@@ -45,7 +49,7 @@ Column {
       width: root.width; height: dayContent.implicitHeight+Commons.Style.space(20)
       color: "transparent"
       Accessible.role: Accessible.StaticText
-      Accessible.name: modelData.label + ", " + WeatherModel.description(modelData.code) + ", low " + (modelData.low===null?"unavailable":modelData.low+" degrees "+root.unit) + ", high " + (modelData.high===null?"unavailable":modelData.high+" degrees "+root.unit) + ", " + dayRain.detail
+      Accessible.name: modelData.label + ", " + WeatherModel.description(modelData.code) + ", low " + (modelData.low===null?"unavailable":root.displayNumber(modelData.low)+" degrees "+root.unit) + ", high " + (modelData.high===null?"unavailable":root.displayNumber(modelData.high)+" degrees "+root.unit) + ", " + dayRain.detail
       Column {
         id: dayContent
         x: Commons.Style.space(8); y: Commons.Style.space(10)
@@ -57,10 +61,10 @@ Column {
         }
         Item {
           width: parent.width; height: Math.max(lowLabel.implicitHeight, highLabel.implicitHeight)
-          PText { id: lowLabel; anchors.left: parent.left; text: "Low "+(modelData.low===null?"—":modelData.low+"°"+root.unit); color: root.muted; font.pixelSize: Commons.Style.font.body }
-          PText { id: highLabel; anchors.right: parent.right; text: "High "+(modelData.high===null?"—":modelData.high+"°"+root.unit); font.pixelSize: Commons.Style.font.body; font.bold: true }
+          PText { id: lowLabel; anchors.left: parent.left; text: "Low "+(modelData.low===null?"—":(root.formats?root.formats.number(modelData.low):modelData.low)+"°"+root.unit); color: root.muted; font.pixelSize: Commons.Style.font.body }
+          PText { id: highLabel; anchors.right: parent.right; text: "High "+(modelData.high===null?"—":(root.formats?root.formats.number(modelData.high):modelData.high)+"°"+root.unit); font.pixelSize: Commons.Style.font.body; font.bold: true }
         }
-        RainTimeline { id: dayRain; objectName: "daily-rain-"+index; width: parent.width; hours: modelData.hours; hourDetails: modelData.details; dailyProbability: modelData.probability }
+        RainTimeline { id: dayRain; objectName: "daily-rain-"+index; width: parent.width; formats:root.formats; hours: modelData.hours; hourDetails: modelData.details; dailyProbability: modelData.probability }
       }
       Rectangle { anchors.bottom: parent.bottom; width: parent.width; height: 1; color: root.muted; opacity: 0.12 }
     }

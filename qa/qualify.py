@@ -62,7 +62,11 @@ def main():
                 ('search',[sys.executable,'-B','qa/city_search/run.py']),
                 ('drag',[sys.executable,'-B','qa/cards_drag/run.py']),
                 ('cities',[sys.executable,'-B','qa/city_list_tests.py']),
-                ('coverage',[sys.executable,'-B','qa/coverage/run.py'])]
+                ('coverage',[sys.executable,'-B','qa/coverage/run.py']),
+                ('motion',[sys.executable,'-B','qa/weather_motion/run.py','--native']),
+                ('formats',[sys.executable,'-B','qa/formats/run.py']),
+                ('preferences',[sys.executable,'-B','qa/native_preferences/run.py','--output',str(out/'preferences')]),
+                ('preferences150',[sys.executable,'-B','qa/native_preferences/run.py','--scale','1.5','--output',str(out/'preferences150')])]
         for name,command in commands:
             start=time.monotonic()
             result=subprocess.run(command,cwd=ROOT,text=True,stdout=subprocess.PIPE,stderr=subprocess.STDOUT,timeout=150)

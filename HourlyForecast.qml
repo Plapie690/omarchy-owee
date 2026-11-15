@@ -5,6 +5,7 @@ import "WeatherModel.js" as WeatherModel
 
 Column {
   id: root
+  property var formats: null
   property var hourly: null
   property var current: null
   property int startIndex: 0
@@ -12,11 +13,12 @@ Column {
   property bool stale: false
   property var scrollView: null
   readonly property bool rightToLeft: LayoutMirroring.enabled
-  readonly property real cell: Commons.Style.space(56)
+  readonly property real cell: Commons.Style.space(formats && formats.mode === "system" && /[aA][pP]/.test(formats.locale.timeFormat(Locale.ShortFormat)) ? 72 : 56)
   readonly property var samples: makeSamples()
   readonly property string precipitationSummary: summary()
   readonly property color muted: Qt.rgba(Commons.Color.foreground.r, Commons.Color.foreground.g, Commons.Color.foreground.b, 0.72)
   spacing: Commons.Style.space(8)
+  function displayNumber(value) { return formats ? formats.number(value) : String(value) }
   function numeric(v) { return typeof v === "number" && isFinite(v) }
   function makeSamples() {
     if (!hourly || !hourly.time) return []
@@ -25,7 +27,7 @@ Column {
       var t = hourly.temperature_2m ? hourly.temperature_2m[i] : null
       var p = hourly.precipitation_probability ? hourly.precipitation_probability[i] : null
       var interval=hourly.rain_intervals && hourly.time_utc ? hourly.rain_intervals.find(function(v){return v.end_utc===hourly.time_utc[i]}) : null
-      rows.push({stamp:String(hourly.time[i]), interval:interval, time: String(hourly.time[i]).slice(11,16), code: hourly.weather_code ? hourly.weather_code[i] : null,
+      rows.push({stamp:String(hourly.time[i]), interval:interval, time: formats ? formats.cityTime(String(hourly.time[i])) : String(hourly.time[i]).slice(11,16), code: hourly.weather_code ? hourly.weather_code[i] : null,
         night: !!hourly.is_day && hourly.is_day[i] === 0,
         temperature: numeric(t) ? Math.round(unit === "F" ? t * 9 / 5 + 32 : t) : null,
         probability: numeric(p) ? Math.max(0, Math.min(100, Math.round(p))) : null})
@@ -38,13 +40,15 @@ Column {
     if (peak===null) return "Rain / snow chance unavailable"
     if (peak.probability===0) return "Bars: rain / snow chance · 0% in available hours"
     var reference=current && current.time ? String(current.time).slice(0,10) : samples[0].stamp.slice(0,10)
-    var interval=peak.interval?{date:peak.interval.date,label:String(peak.interval.start_local).slice(11,16)+"–"+String(peak.interval.end_local).slice(11,16)}:WeatherModel.rainInterval(peak.stamp)
+    var interval=peak.interval?{date:peak.interval.date,label:(formats?formats.cityTime(String(peak.interval.start_local)):String(peak.interval.start_local).slice(11,16))+"–"+(formats?formats.cityTime(String(peak.interval.end_local)):String(peak.interval.end_local).slice(11,16))}:WeatherModel.rainInterval(peak.stamp)
+    if(interval && !peak.interval && formats)interval.label=formats.clockHour(interval.hour)+"–"+formats.clockHour(interval.hour+1)
     var day=interval?interval.date:peak.stamp.slice(0,10), when=interval?interval.label:peak.time
     if(day!==reference || stale) {
       var label=WeatherModel.dayLabel(day,reference,stale)
+      if(formats && label!=="Tomorrow" && label!=="Today")label=formats.day(day)
       when=(label==="Tomorrow"?"tomorrow":label)+" "+when
     }
-    return "Bars: rain / snow chance · peak "+peak.probability+"% · "+when
+    return "Bars: rain / snow chance · peak "+(formats?formats.number(peak.probability):peak.probability)+"% · "+when
   }
   function center(index) { return (rightToLeft ? samples.length - index - 1 : index) * cell + cell / 2 }
   function move(direction) {
@@ -97,10 +101,10 @@ Column {
         required property int index
         x: root.center(index) - width/2; width: root.cell; height: strip.height
         Accessible.role: Accessible.StaticText
-        Accessible.name: modelData.time + ", " + (modelData.temperature === null ? "temperature unavailable" : modelData.temperature + " degrees") + (modelData.probability === null ? "" : ", rain or snow chance " + modelData.probability + " percent during " + (WeatherModel.rainInterval(modelData.stamp)?WeatherModel.rainInterval(modelData.stamp).label:modelData.time))
+        Accessible.name: modelData.time + ", " + (modelData.temperature === null ? "temperature unavailable" : root.displayNumber(modelData.temperature) + " degrees") + (modelData.probability === null ? "" : ", rain or snow chance " + root.displayNumber(modelData.probability) + " percent during " + (WeatherModel.rainInterval(modelData.stamp)?WeatherModel.rainInterval(modelData.stamp).label:modelData.time))
         PText { anchors.horizontalCenter: parent.horizontalCenter; y: 0; text: modelData.time; color: root.muted; font.pixelSize: Commons.Style.font.bodySmall }
         WeatherMark { anchors.horizontalCenter: parent.horizontalCenter; y: Commons.Style.space(23); scale: Commons.Style.space(20)/24; transformOrigin: Item.Top; code: modelData.code; night: modelData.night }
-        PText { objectName: "hourly-temperature-" + index; anchors.horizontalCenter: parent.horizontalCenter; y: Commons.Style.space(51); text: modelData.temperature === null ? "—" : modelData.temperature + "°"; font.pixelSize: Commons.Style.font.body; font.bold: true }
+        PText { objectName: "hourly-temperature-" + index; anchors.horizontalCenter: parent.horizontalCenter; y: Commons.Style.space(51); text: modelData.temperature === null ? "—" : (root.formats?root.formats.number(modelData.temperature):modelData.temperature) + "°"; font.pixelSize: Commons.Style.font.body; font.bold: true }
         Item {
           objectName: "hourly-precipitation-" + index
           x: (parent.width-width)/2; y: Commons.Style.space(88)
@@ -121,7 +125,7 @@ Column {
           }
           Rectangle { anchors.bottom: parent.bottom; anchors.horizontalCenter: parent.horizontalCenter; width: Commons.Style.space(12); height: Commons.Style.space(1); color: root.muted; opacity: 0.2 }
         }
-        PText { anchors.horizontalCenter: parent.horizontalCenter; y: Commons.Style.space(126); text: modelData.probability === null ? "—" : modelData.probability + " %"; color: root.muted; font.pixelSize: Commons.Style.font.bodySmall }
+        PText { anchors.horizontalCenter: parent.horizontalCenter; y: Commons.Style.space(126); text: modelData.probability === null ? "—" : (root.formats?root.formats.number(modelData.probability):modelData.probability) + " %"; color: root.muted; font.pixelSize: Commons.Style.font.bodySmall }
       }
     }
   }
