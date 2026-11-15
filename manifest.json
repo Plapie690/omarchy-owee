@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "id": "owee.weather",
+  "name": "Omarchy Weather Enhanced Experience (OWEE)",
+  "version": "1.3.0-rc.1",
+  "author": "Paul",
+  "description": "Worldwide weather with honest coverage, hourly rain timelines and configurable notifications",
+  "kinds": [
+    "bar-widget"
+  ],
+  "entryPoints": {
+    "barWidget": "BarWidget.qml"
+  },
+  "barWidget": {
+    "displayName": "OWEE",
+    "description": "Weather, forecasts and radar",
+    "category": "Info",
+    "allowMultiple": false,
+    "defaultSection": "centerBegin"
+  },
+  "license": "MIT"
+}

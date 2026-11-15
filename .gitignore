@@ -1,0 +1,12 @@
+__pycache__/
+*.py[cod]
+reports/
+.cache/
+.venv/
+qa/**/*.log
+qa/**/*.png
+qa/**/*.json
+qa/*.log
+qa/*.png
+qa/*.json
+!preview.png
