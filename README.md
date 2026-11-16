@@ -10,7 +10,7 @@ Pixel Weather clarity. Omarchy character.
 [![License: MIT](https://img.shields.io/badge/license-MIT-9aa5ce?style=flat-square)](LICENSE)
 [![Made for Omarchy](https://img.shields.io/badge/made_for-Omarchy-7aa2f7?style=flat-square)](https://omarchy.org)
 
-[The idea](#the-idea) · [A closer look](#a-closer-look) · [Install](#install) · [Reading the weather](#reading-the-weather) · [Under the hood](#under-the-hood)
+[The idea](#the-idea) · [A closer look](#a-closer-look) · [Install](#install) · [Reading the weather](#reading-the-weather) · [Data & privacy](#data-and-privacy)
 
 <img src="preview.png" width="960" alt="OWEE — Weather for Omarchy: an expressive weather symbol beside the current conditions, favorite cities and hourly forecast interface">
 
@@ -115,32 +115,13 @@ Remove:
 omarchy plugin remove owee.weather
 ```
 
-Removing the code retains user preferences, caches and migration backups for
-recovery. Data locations are documented in [PRIVACY.md](PRIVACY.md).
+Removing the plugin keeps your saved preferences and cached forecasts.
+Data locations are documented in [PRIVACY.md](PRIVACY.md).
 
-**Requirements:** Omarchy Quattro. Validated baseline: Omarchy 4.5.0,
-Quickshell 0.3.2 (Arch build `0.3.2.r7.g2b4501a`), Qt 6.12 and Python 3.12+
+**Requirements:** Omarchy Quattro with Qt 6.12 and Python 3.12+
 with IANA tzdata. Optional notifications use `notify-send`.
 
 No API key, account, subscription or third-party Python runtime package is needed.
-
-<details>
-<summary>Moving from the original local Pixel Weather plugin</summary>
-
-From a checkout of this repository, run:
-
-```sh
-python3 -B tools/migrate_local.py --apply
-```
-
-The migration backs up settings and bar layout, preserves favorites and
-notification rules, and provides an explicit rollback tool. Legacy-compatible
-state directories keep the name `pixel-weather`. A locked session may require
-an Omarchy shell restart after unlocking.
-
-Existing OWEE installations use the normal update command above.
-
-</details>
 
 ## Reading the weather
 
@@ -183,59 +164,22 @@ follow the desktop clock; weather intervals follow the primary city's timezone.
 Stale data does not trigger automatic alerts. Do Not Disturb takes priority.
 Notifications are informational, not official weather warnings.
 
-## Under the hood
+## Data and privacy
 
-QML and Qt Quick provide the native Omarchy interface. Small Python workers
-handle source requests, normalization, disk storage and notification delivery.
-There is no application server or extra persistent Quickshell instance.
+OWEE fetches forecasts directly from public weather providers. No account,
+API key or telemetry is required. Your favorites, preferences and cached
+forecasts stay on your computer. See [Privacy](PRIVACY.md) for details.
 
-Core weather and optional enrichment load separately. Responses are bounded,
-malformed data is checked before display, and cached forecasts remain available
-with an explicit stale label. Normal refresh is every fifteen minutes; manual
-refresh has a sixty-second cooldown, and optional enrichment has a one-hour cache.
-
-Temperature mode, date/number format and automatic refresh live in the native
-Omarchy widget entry. Favorites, cards, notification settings and cached data
-retain dedicated storage. Existing preferences are preserved during migration.
+Forecasts refresh every fifteen minutes. You can refresh manually once per
+minute. Cached forecasts remain readable offline and are clearly marked when
+out of date.
 
 Public providers have their own terms, regional coverage and availability limits.
 Code is MIT; data and imagery have separate licenses and attribution requirements.
 
-<details>
-<summary><strong>Development and validation</strong></summary>
-
-The Python runtime uses the standard library. Development checks additionally use
-pinned Ruff, mypy and coverage tools. Native UI QA needs QtTest and Pillow.
-Keep the virtual environment outside the plugin checkout: the native validator
-rejects symlinks inside plugin folders, including ignored development files.
-
-```sh
-python3 -m venv /tmp/owee-dev-venv
-/tmp/owee-dev-venv/bin/python -m pip install -r requirements-dev.txt
-python3 -B qa/qualify.py
-python3 -B qa/qualify.py --native --quality-python /tmp/owee-dev-venv/bin/python
-```
-
-Live-source checks are separate, bounded probes:
-
-```sh
-python3 -B qa/international.py
-python3 -B qa/live_maps.py
-```
-
-Endurance runs use isolated fixtures, block real API calls and notifications, and
-record elapsed time, repeated interactions, CPU, memory and the tested source hash.
-Native Wayland loading is checked separately. CI runs deterministic tests on
-hosted runners; native checks use the trusted reference desktop.
-
-See [RELEASE.md](RELEASE.md) for the procedure and
-[RELEASE_NOTES.md](RELEASE_NOTES.md) for the actual validation history.
-
-</details>
-
 ---
 
-[Sources & data terms](SOURCES.md) · [Privacy](PRIVACY.md) · [Security](SECURITY.md) · [Release notes](RELEASE_NOTES.md) · [MIT license](LICENSE)
+[Sources & data terms](SOURCES.md) · [Privacy](PRIVACY.md) · [Security](SECURITY.md) · [Contributing](CONTRIBUTING.md) · [Release notes](RELEASE_NOTES.md) · [MIT license](LICENSE)
 
 An independent community project by Paul. Pixel Weather inspired the visual
 direction; OWEE is not affiliated with Google or the Omarchy team.
