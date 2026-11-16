@@ -12,7 +12,9 @@ Pixel Weather clarity. Omarchy character.
 
 [The idea](#the-idea) · [A closer look](#a-closer-look) · [Install](#install) · [Reading the weather](#reading-the-weather) · [Under the hood](#under-the-hood)
 
-<img src="assets/screenshots/overview.png" width="360" alt="OWEE overview: current conditions, weather illustration, hourly temperatures and precipitation forecasts">
+<img src="preview.png" width="960" alt="OWEE — Weather for Omarchy: an expressive weather symbol beside the current conditions, favorite cities and hourly forecast interface">
+
+<sub>Promotional artwork based on the sample-data interface. Actual plugin screenshots below.</sub>
 
 </div>
 
@@ -49,6 +51,10 @@ The design follows a few simple principles:
 
 Captures show the actual plugin interface with illustrative sample data.
 They demonstrate the layout and interactions, rather than a live forecast.
+
+<p align="center">
+  <img src="assets/screenshots/overview.png" width="360" alt="Actual OWEE overview: favorite-city navigation, current conditions, weather illustration and hourly precipitation forecasts">
+</p>
 
 <table>
   <tr>

@@ -31,7 +31,9 @@ by system power-off after 5 h 05 min / 458 cycles; twelve hours are incomplete.
 The maintainer explicitly accepted this limitation for this release.
 See RELEASE_NOTES.md; do not claim twelve-hour qualification.
 
-Preview: assets/preview.png (illustrative fixture data, no personal state).
+Preview: preview.png at the repository root (promotional artwork generated from
+the sample-data interface; no personal state). Actual screenshots remain in
+assets/screenshots/. Cover provenance and generation prompt: assets/COVER.md.
 
 Install: `omarchy plugin add <repository>.git --enable`
 
