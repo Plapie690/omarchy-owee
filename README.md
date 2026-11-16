@@ -1,127 +1,228 @@
-# Omarchy Weather Enhanced Experience (OWEE)
+<div align="center">
 
-A community weather widget for Omarchy Quattro, with a compact bar symbol,
-local-time rain timelines, animated past radar, forecast maps and opt-in
-notifications. Independent of Google and Omarchy; Pixel Weather inspired the
-visual direction. English UI. MIT code, separately licensed data.
+# OWEE
 
-![OWEE weather panel with hourly and daily precipitation forecasts](assets/preview.png)
+**Omarchy Weather Enhanced Experience**
 
-**Current release: 1.3.0.**
-Declared stable by the maintainer on 16 November 2026 after native validation.
-The planned twelve-hour endurance run was interrupted by system shutdown after
-5 h 05 min / 458 cycles. It is not a completed twelve-hour qualification.
-See [release notes](RELEASE_NOTES.md) for the validation scope and release decision.
+Pixel Weather clarity. Omarchy character.
 
-## Requirements
+[![Checks](https://github.com/Plapie690/omarchy-owee/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/Plapie690/omarchy-owee/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/license-MIT-9aa5ce?style=flat-square)](LICENSE)
+[![Made for Omarchy](https://img.shields.io/badge/made_for-Omarchy-7aa2f7?style=flat-square)](https://omarchy.org)
 
-Validated baseline: Omarchy 4.5.0, Quickshell 0.3.2 (Arch build
-0.3.2.r7.g2b4501a), Qt 6.12 and Python 3.12 or newer with IANA tzdata.
-No third-party Python package is needed at runtime. Native QA also uses QtTest
-and Pillow (the latter only compares generated screenshots). No root service,
-API key, subscription or extra Quickshell instance is started by the plugin.
+[The idea](#the-idea) · [A closer look](#a-closer-look) · [Install](#install) · [Reading the weather](#reading-the-weather) · [Under the hood](#under-the-hood)
 
-## Install and update
+<img src="assets/screenshots/overview.png" width="360" alt="OWEE overview: current conditions, weather illustration, hourly temperatures and precipitation forecasts">
 
-After the public repository is created under your GitHub account:
+</div>
+
+## The idea
+
+I wanted checking the weather to feel useful and pleasant: a small, expressive
+widget in the bar, and a clear forecast when you open it. The starting point was
+the clarity and playful atmosphere of Pixel Weather, brought into Omarchy's
+colors, typography and desktop controls. Omarchy's native World Clock was also
+a reference for coordinated motion and integration with the shell.
+
+The project grew through everyday questions: *What is it like outside? When
+might it rain? What do these bars actually tell me?* Those questions shaped the
+interface, from the custom weather symbol to the hourly rain timelines.
+
+The design follows a few simple principles:
+
+- **Recognize the weather immediately.** Distinctive weather marks communicate
+  the condition, with the temperature always visible in the bar.
+- **Give each graphic a purpose.** Temperatures have explicit Low/High labels.
+  Daily precipitation uses a 00:00–24:00 timeline so you can locate likely rain
+  periods directly.
+- **Make motion feel connected.** The weather illustration and forecast sections
+  share a short opening progression. Weather movement stays active while viewed;
+  closing the panel stops it. Reduced motion follows Omarchy.
+- **Keep the desktop familiar.** Theme colors, type, spacing and controls follow
+  Omarchy. Optional system formats adapt dates, numbers and temperature units.
+- **Let the view fit the person.** Reorder measurement cards, hide what you do
+  not need, save favorite cities and choose the city shown in the bar.
+- **Be clear about uncertainty.** Forecast, observed radar, cached data and
+  unavailable information have distinct labels. Missing data remains missing.
+
+## A closer look
+
+Captures show the actual plugin interface with illustrative sample data.
+They demonstrate the layout and interactions, rather than a live forecast.
+
+<table>
+  <tr>
+    <td align="center" width="50%">
+      <strong>When might it rain?</strong><br>
+      <sub>Daily forecasts with local-time precipitation timelines.</sub><br><br>
+      <img src="assets/screenshots/daily.png" width="300" alt="Daily weather: low and high temperatures and individual hourly rain-probability bars from midnight to midnight">
+    </td>
+    <td align="center" width="50%">
+      <strong>Measurements with context</strong><br>
+      <sub>Readable values, units and purpose-built visual indicators.</sub><br><br>
+      <img src="assets/screenshots/measurements.png" width="300" alt="Measurement cards for wind, humidity, UV, sunrise and sunset, pressure and visibility">
+    </td>
+  </tr>
+  <tr>
+    <td align="center">
+      <strong>Explore without losing your home weather</strong><br>
+      <sub>The viewed city and the bar's primary city are separate choices.</sub><br><br>
+      <img src="assets/screenshots/cities.png" width="300" alt="City picker with live search, coordinate input, favorites and a primary-city star">
+    </td>
+    <td align="center">
+      <strong>Your cards, your order</strong><br>
+      <sub>Drag to reorder measurements and choose which cards stay visible.</sub><br><br>
+      <img src="assets/screenshots/customize.png" width="300" alt="Card customization with drag handles, visibility controls and measurement cards">
+    </td>
+  </tr>
+</table>
+
+<details>
+<summary><strong>Settings and notification controls</strong></summary>
+<br>
+<p align="center">
+  <img src="assets/screenshots/settings.png" width="360" alt="Settings for automatic refresh, system or manual temperature units, date and number formats, cards and optional notifications">
+</p>
+
+The interface stays in English. Select **System** to follow your desktop's
+measurement system or date and number formats. Manual Celsius/Fahrenheit choices
+remain available. Notifications are opt-in and support thresholds, quiet hours
+and a daily summary.
+
+</details>
+
+## Install
 
 ```sh
 omarchy plugin add https://github.com/Plapie690/omarchy-owee.git --enable
+```
+
+Update:
+
+```sh
 omarchy plugin update owee.weather
 ```
 
-The manifest must be at the repository root. Omarchy updates Git commits on the
-repository default branch, not merely version tags. Only qualified releases
-belong on that branch. For the existing local Pixel Weather installation, use
-`python3 tools/migrate_local.py --apply`; it backs up settings and bar layout
-and prints the exact rollback command. State remains in the legacy-compatible
-`pixel-weather` folders. Installation does not erase favorites or notification
-rules. A locked desktop may require a shell restart after unlocking.
-
-## Reading the weather
-
-- The bar and notifications use the primary city. **Viewing** names the location
-  in the panel; **Use in bar** explicitly changes the primary city.
-- Search updates while typing. Enter a city or decimal **latitude, longitude**,
-  for example `27.7172, 85.3240`. Coordinates bypass the city gazetteer.
-- **Now** shows modelled current conditions and feels-like temperature.
-- **Hourly** gives temperatures and precipitation probabilities. Probability
-  covers the hour ending at the provider timestamp; the peak names its actual
-  interval, not an assumed future hour.
-- **Daily** keeps Low/High as text. Its 00:00–24:00 stripe shows hourly rain/snow
-  chance: brighter blue means higher chance, grey means zero, outline means
-  missing data. Hover, click, or use Tab and arrow keys for the precise interval.
-  Repeated clock hours retain both UTC periods; a skipped hour is identified.
-- Weather, solar events and maps use the selected location's IANA timezone.
-  Polar day/night is shown explicitly, rather than fake midnight solar events.
-- **Measurements** includes optional air and pollen data. Explanations identify
-  units, forecast versus current values, and the European AQI scale. Missing
-  pollen is never interpreted as zero. Drag cards in Settings to reorder them.
-- **Past rain / Radar** is observed historical precipitation. Coverage masks
-  distinguish absent observations from dry conditions. **Upcoming weather** is
-  a model forecast; it is not radar or an official warning.
-- Maps are opt-in and stop when hidden. Web Mercator cannot show the poles;
-  OWEE explains the projection limit without moving the selected location.
-- Notifications are opt-in. Quiet hours and the daily summary follow the desktop
-  clock; weather intervals follow the primary city's timezone. Cached/stale data
-  does not trigger automatic notifications, and Do Not Disturb takes priority.
-
-## Reliability and privacy
-
-Sources are free public services with regional coverage and availability limits.
-OWEE does not promise every field everywhere, uninterrupted APIs, or zero bugs.
-Core weather and optional enrichment have separate workers. Cache fallback is
-labelled, responses and writes are bounded, and malformed optional data does not
-remove valid core weather. A sixty-second manual refresh cooldown limits bursts;
-normal refresh is fifteen minutes and optional enrichment has a one-hour cache.
-
-See [sources and conditions](SOURCES.md), [privacy](PRIVACY.md),
-[release gates](RELEASE.md) and [security reporting](SECURITY.md).
-
-## Validate
-
-```sh
-python3 -B qa/qualify.py                         # offline CI gates
-python3 -B qa/qualify.py --native                # actual Omarchy runtime/UI gates
-python3 -B qa/international.py                  # bounded live global probes
-python3 -B qa/live_maps.py                      # bounded live map contracts
-python3 -B qa/endurance.py --report-dir reports/endurance-1.3.0-rc.3
-python3 -B tools/promote.py                     # checks gates; does not publish
-```
-
-The endurance command runs one isolated fixture process for twelve real hours,
-at least 1,000 cycles, with CPU/RSS telemetry, real elapsed time and source hash.
-A short smoke test cannot qualify as twelve hours. External API calls and real
-notifications are blocked in endurance. Native Wayland loading is a separate
-required gate; offscreen fixtures are not proof of native GPU behavior.
-
-CI runs deterministic tests on hosted runners for each push/PR. Never run
-untrusted PR code on your personal Omarchy session or a privileged self-hosted
-runner. Native qualification uses the trusted reference machine and an isolated
-XDG state/cache; evidence is excluded from the Git repository.
-
-## Remove
+Remove:
 
 ```sh
 omarchy plugin remove owee.weather
 ```
 
-User state and migration backups remain for recovery. See PRIVACY.md for their
-locations. Deleting those directories is a separate explicit action.
+Removing the code retains user preferences, caches and migration backups for
+recovery. Data locations are documented in [PRIVACY.md](PRIVACY.md).
 
-### Native preferences and display formats
+**Requirements:** Omarchy Quattro. Validated baseline: Omarchy 4.5.0,
+Quickshell 0.3.2 (Arch build `0.3.2.r7.g2b4501a`), Qt 6.12 and Python 3.12+
+with IANA tzdata. Optional notifications use `notify-send`.
 
-Simple display preferences (temperature mode, date/number format and automatic
-refresh) are saved in OWEE's native Omarchy widget entry. Existing Celsius or
-Fahrenheit and refresh choices are seeded from the previous settings on first
-load. Favorites, cards, notifications and cached data retain their own storage.
+No API key, account, subscription or third-party Python runtime package is needed.
 
-Temperature mode offers System, Celsius and Fahrenheit. System follows the
-Omarchy format locale's measurement system, including notification temperatures.
-Date and number formats offer English (the existing default) and System. The
-interface remains English. Forecast clocks always describe the selected city,
-including repeated daylight-saving hours; the daily rain axis stays 00:00–24:00.
+<details>
+<summary>Moving from the original local Pixel Weather plugin</summary>
 
-One 220 ms opening progression coordinates the weather illustration and forecast
-sections. Native popup transitions still own opening/closing geometry. Reduced
-motion settles the content immediately, and closing stops the opening clock.
+From a checkout of this repository, run:
+
+```sh
+python3 -B tools/migrate_local.py --apply
+```
+
+The migration backs up settings and bar layout, preserves favorites and
+notification rules, and provides an explicit rollback tool. Legacy-compatible
+state directories keep the name `pixel-weather`. A locked session may require
+an Omarchy shell restart after unlocking.
+
+Existing OWEE installations use the normal update command above.
+
+</details>
+
+## Reading the weather
+
+| View | What it helps you understand |
+| --- | --- |
+| **Bar** | The primary city's condition and temperature at a glance. |
+| **Now** | Modelled current conditions, feels-like temperature and today's Low/High. |
+| **Hourly** | How temperatures and rain/snow probabilities change over the next hours. |
+| **Daily** | Each day's conditions and the times when precipitation may occur. |
+| **Measurements** | Wind, humidity, UV, solar events, pressure, visibility and optional air/pollen data. |
+| **Past rain / Radar** | Recent observed precipitation, with radar coverage information. |
+| **Upcoming weather** | Model forecast maps for precipitation, temperature and clouds. |
+
+**The blue bars represent probability.** In the daily view, brighter blue means
+higher rain/snow chance, grey means zero, and an outline means no hourly data.
+Hover, click, or use Tab and arrow keys to read the precise interval. A provider
+probability covers the hour ending at its timestamp; OWEE labels that interval.
+
+**Times follow the selected city.** Repeated daylight-saving hours retain both
+UTC periods, skipped hours are identified, and polar day/night are explicit.
+The daily rain axis stays 00:00–24:00 even when using system display formats.
+
+**Browsing does not change your bar city.** Search updates as you type; enter a
+city or decimal `latitude, longitude`, such as `27.7172, 85.3240`. Favorites keep
+places close. **Use in bar** makes the viewed city primary for both the bar and
+notifications.
+
+**Coverage is visible.** Radar coverage masks distinguish missing observations
+from dry conditions. Air and pollen vary by region; unavailable values do not
+become zero. Maps are opt-in, stop when hidden and explain projection limits
+near the poles. Forecast maps are model predictions, distinct from radar.
+
+**Notifications stay under your control.** Quiet hours and the daily summary
+follow the desktop clock; weather intervals follow the primary city's timezone.
+Stale data does not trigger automatic alerts. Do Not Disturb takes priority.
+Notifications are informational, not official weather warnings.
+
+## Under the hood
+
+QML and Qt Quick provide the native Omarchy interface. Small Python workers
+handle source requests, normalization, disk storage and notification delivery.
+There is no application server or extra persistent Quickshell instance.
+
+Core weather and optional enrichment load separately. Responses are bounded,
+malformed data is checked before display, and cached forecasts remain available
+with an explicit stale label. Normal refresh is every fifteen minutes; manual
+refresh has a sixty-second cooldown, and optional enrichment has a one-hour cache.
+
+Temperature mode, date/number format and automatic refresh live in the native
+Omarchy widget entry. Favorites, cards, notification settings and cached data
+retain dedicated storage. Existing preferences are preserved during migration.
+
+Public providers have their own terms, regional coverage and availability limits.
+Code is MIT; data and imagery have separate licenses and attribution requirements.
+
+<details>
+<summary><strong>Development and validation</strong></summary>
+
+The Python runtime uses the standard library. Development checks additionally use
+pinned Ruff, mypy and coverage tools. Native UI QA needs QtTest and Pillow.
+
+```sh
+python3 -m venv reports/dev-venv
+reports/dev-venv/bin/python -m pip install -r requirements-dev.txt
+python3 -B qa/qualify.py
+python3 -B qa/qualify.py --native --quality-python reports/dev-venv/bin/python
+```
+
+Live-source checks are separate, bounded probes:
+
+```sh
+python3 -B qa/international.py
+python3 -B qa/live_maps.py
+```
+
+Endurance runs use isolated fixtures, block real API calls and notifications, and
+record elapsed time, repeated interactions, CPU, memory and the tested source hash.
+Native Wayland loading is checked separately. CI runs deterministic tests on
+hosted runners; native checks use the trusted reference desktop.
+
+See [RELEASE.md](RELEASE.md) for the procedure and
+[RELEASE_NOTES.md](RELEASE_NOTES.md) for the actual validation history.
+
+</details>
+
+---
+
+[Sources & data terms](SOURCES.md) · [Privacy](PRIVACY.md) · [Security](SECURITY.md) · [Release notes](RELEASE_NOTES.md) · [MIT license](LICENSE)
+
+An independent community project by Paul. Pixel Weather inspired the visual
+direction; OWEE is not affiliated with Google or the Omarchy team.
