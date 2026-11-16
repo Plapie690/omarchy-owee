@@ -59,3 +59,12 @@ worktree. `develop` remains on the candidate. Never check out `main` while an
 automatic promotion is pending. The local finalizer fetches the exact qualified
 main commit and fast-forwards the installed plugin, preserving local edits by
 refusing dirty or divergent checkouts. It never pushes a remote.
+
+## 1.3.0 maintainer exception
+
+On 16 November 2026 the maintainer explicitly requested stable publication with
+the interrupted 1.3.0-rc.3 endurance evidence. See RELEASE_NOTES.md. The automatic
+`tools/promote.py --apply` gate remains strict and will reject that incomplete
+run. Manual promotion for this single release retains source matching and all
+native/live gates, records the interruption and decision, and reruns the stable
+native checks. It must not be described as a completed twelve-hour qualification.

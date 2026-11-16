@@ -5,8 +5,13 @@ local-time rain timelines, animated past radar, forecast maps and opt-in
 notifications. Independent of Google and Omarchy; Pixel Weather inspired the
 visual direction. English UI. MIT code, separately licensed data.
 
-**Current build: 1.3.0-rc.3 — release candidate, not yet declared stable.**
-A real twelve-hour endurance report is required before stable promotion.
+![OWEE weather panel with hourly and daily precipitation forecasts](assets/preview.png)
+
+**Current release: 1.3.0.**
+Declared stable by the maintainer on 16 November 2026 after native validation.
+The planned twelve-hour endurance run was interrupted by system shutdown after
+5 h 05 min / 458 cycles. It is not a completed twelve-hour qualification.
+See [release notes](RELEASE_NOTES.md) for the validation scope and release decision.
 
 ## Requirements
 
