@@ -62,7 +62,8 @@ ShellRoot {
   }
   function plain(item) {
     if(!item)return true
-    if(typeof item.text==="string"&&item.text.indexOf("<img")>=0&&item.textFormat!==Text.PlainText)return false
+    // Native buttons forward their text to a PlainText child; inspect actual renderers.
+    if(item instanceof Text&&typeof item.text==="string"&&item.text.indexOf("<img")>=0&&item.textFormat!==Text.PlainText)return false
     for(var i=0;item.children&&i<item.children.length;i++)if(!plain(item.children[i]))return false
     return true
   }

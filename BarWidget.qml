@@ -38,7 +38,7 @@ BarWidget {
     readonly property real nativeBearings: Math.max(0, Style.bar.statusSlot - Style.bar.iconCanvas)
     implicitWidth: vertical ? barSize : weatherContent.implicitWidth + nativeBearings
     implicitHeight: vertical ? weatherContent.implicitHeight + nativeBearings : barSize
-    tooltipText: "OWEE 1.3.2 · click to open"
+    tooltipText: "OWEE 1.3.3 · click to open"
     Accessible.role: Accessible.Button
     Accessible.name: "Weather: " + (loader.item ? loader.item.barTemperature : "—")
     Accessible.onPressAction: if (loader.item) loader.item.toggle()

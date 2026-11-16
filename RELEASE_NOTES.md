@@ -1,3 +1,21 @@
+# OWEE 1.3.3
+
+## Favorite cities in the navigation
+
+Saved cities are available directly beside Weather and Maps. One click changes
+the viewed city, with the current city highlighted and the bar city marked by a
+star. Switching cities on Maps keeps the map page open. Choosing the current
+city does not trigger another request.
+
+The favorites strip scrolls when needed and reveals focused cities during
+keyboard navigation. Long names remain bounded and their full label is available
+in the tooltip. Cities still manages search, favorites, order and removal.
+
+The separate Use in bar action sits beside the bar-city label. Viewing a favorite
+keeps the bar and notification city unchanged until that action is chosen.
+
+---
+
 # OWEE 1.3.2
 
 ## Softer forecast panels

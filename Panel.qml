@@ -12,7 +12,7 @@ Panel {
   id: root
   moduleName: "owee.weather"
   manageIpc: false
-  readonly property string pluginVersion: "1.3.2"
+  readonly property string pluginVersion: "1.3.3"
   property string activePage: "weather"
   property string mapPage: "radar"
   property bool measurementHelp: false
@@ -262,6 +262,15 @@ Panel {
     }
   }
   function choose(item) { suggestions = []; searching = false; run("select", JSON.stringify(item)) }
+  function chooseFavorite(item) {
+    if (loading || !item) return
+    searching = false
+    suggestions = []
+    if (activePage === "settings") showPage("weather")
+    var content = popup.ensureContent()
+    if (content) content.resetForOpening()
+    if (cityKey(item) !== viewedKey) choose(item)
+  }
   function open() { controller.show() }
   function toggle() { if (opened) close(); else open() }
   function close() { searching = false; suggestions = []; controller.hide() }
@@ -401,10 +410,23 @@ Panel {
             width: Math.max(0, parent.width-headerActions.width-Style.space(12))
             spacing: Style.space(3)
             PText { width: parent.width; text: "Viewing "+root.cityName; font.pixelSize: Style.font.heading; font.bold: true; elide: Text.ElideRight }
-            PText {
-              width: parent.width
-              text: "Bar weather: "+root.primaryCityName
-              color: root.mutedText; font.pixelSize: Style.font.bodySmall; elide: Text.ElideRight
+            Row {
+              width: parent.width; spacing: Style.space(6)
+              PText {
+                anchors.verticalCenter: parent.verticalCenter
+                width: Math.max(0, parent.width - (barCityAction.visible ? barCityAction.width + parent.spacing : 0))
+                text: "Bar weather: "+root.primaryCityName
+                color: root.mutedText; font.pixelSize: Style.font.bodySmall; elide: Text.ElideRight
+              }
+              Ui.Button {
+                id: barCityAction
+                objectName: "use-in-bar"; text: "Use in bar"
+                visible: !root.searching && !!root.result.city && !root.viewingPrimary
+                enabled: !root.loading; focusable: true; bordered: true
+                height: Style.space(24); fontSize: Style.font.bodySmall; horizontalPadding: Style.space(6)
+                tooltipText: "Use the viewed city for bar weather and notifications"
+                onClicked: root.run("primary",root.cityKey(root.result.city))
+              }
             }
             PText {
               width: parent.width; text: root.freshness()
@@ -434,11 +456,21 @@ Panel {
             }
           }
         }
-        Row {
-          spacing: Style.space(8)
-          Ui.Button { objectName: "nav-weather"; text: "Weather"; focusable: true; bordered: true; selected: root.activePage === "weather" && !root.searching; onClicked: root.showPage("weather") }
-          Ui.Button { objectName: "nav-maps"; text: "Maps"; focusable: true; bordered: true; selected: root.activePage === "maps" && !root.searching; onClicked: root.showPage("maps") }
-          Ui.Button { objectName: "use-in-bar"; text: "Use in bar"; visible: !root.searching && !!root.result.city && !root.viewingPrimary; enabled: !root.loading; focusable: true; bordered: true; tooltipText: "Use the viewed city for bar weather and notifications"; onClicked: root.run("primary",root.cityKey(root.result.city)) }
+        Item {
+          width: parent.width; height: Style.space(38)
+          Row {
+            id: pageTabs
+            spacing: Style.space(8)
+            Ui.Button { objectName: "nav-weather"; text: "Weather"; height: Style.space(34); focusable: true; bordered: true; selected: root.activePage === "weather" && !root.searching; onClicked: root.showPage("weather") }
+            Ui.Button { objectName: "nav-maps"; text: "Maps"; height: Style.space(34); focusable: true; bordered: true; selected: root.activePage === "maps" && !root.searching; onClicked: root.showPage("maps") }
+          }
+          FavoriteCities {
+            objectName: "favorite-cities"
+            anchors.left: pageTabs.right; anchors.leftMargin: Style.space(12)
+            width: Math.max(0, parent.width-pageTabs.width-Style.space(12))
+            cities: root.cities; currentCity: root.result.city; primaryCity: root.primaryCity; busy: root.loading
+            onCitySelected: function(city) { root.chooseFavorite(city) }
+          }
         }
         Rectangle { width: parent.width; height: 1; color: Commons.Color.foreground; opacity: 0.12 }
       }

@@ -157,10 +157,15 @@ probability covers the hour ending at its timestamp; OWEE labels that interval.
 UTC periods, skipped hours are identified, and polar day/night are explicit.
 The daily rain axis stays 00:00–24:00 even when using system display formats.
 
+**Favorites are one click away.** Saved cities sit beside Weather and Maps.
+Click a city to view it immediately; Maps stays open when switching locations.
+Scroll the strip for more cities or use Tab to reach them. The highlighted city
+is the one being viewed; the star marks the city used by the bar and notifications.
+
 **Browsing does not change your bar city.** Search updates as you type; enter a
 city or decimal `latitude, longitude`, such as `27.7172, 85.3240`. Favorites keep
-places close. **Use in bar** makes the viewed city primary for both the bar and
-notifications.
+places close. **Use in bar**, beside the bar-city label, makes the viewed city primary for both
+the bar and notifications.
 
 **Coverage is visible.** Radar coverage masks distinguish missing observations
 from dry conditions. Air and pollen vary by region; unavailable values do not

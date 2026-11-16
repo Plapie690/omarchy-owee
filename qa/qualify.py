@@ -66,7 +66,9 @@ def main():
                 ('motion',[sys.executable,'-B','qa/weather_motion/run.py','--native']),
                 ('formats',[sys.executable,'-B','qa/formats/run.py']),
                 ('preferences',[sys.executable,'-B','qa/native_preferences/run.py','--output',str(out/'preferences')]),
-                ('preferences150',[sys.executable,'-B','qa/native_preferences/run.py','--scale','1.5','--output',str(out/'preferences150')])]
+                ('preferences150',[sys.executable,'-B','qa/native_preferences/run.py','--scale','1.5','--output',str(out/'preferences150')]),
+                ('favorite-cities',[sys.executable,'-B','qa/favorite_cities/run.py','--output',str(out/'favorite-cities')]),
+                ('favorite-cities150',[sys.executable,'-B','qa/favorite_cities/run.py','--scale','1.5','--output',str(out/'favorite-cities150')])]
         for name,command in commands:
             start=time.monotonic()
             result=subprocess.run(command,cwd=ROOT,text=True,stdout=subprocess.PIPE,stderr=subprocess.STDOUT,timeout=150)
