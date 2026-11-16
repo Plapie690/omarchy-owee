@@ -6,7 +6,11 @@ Plugin ID: `owee.weather`
 
 Repository: `https://github.com/YOUR_GITHUB_ACCOUNT/omarchy-owee`
 
-Category/tags: weather, bar-widget, forecasts, radar, notifications
+Category: Widgets
+
+Tags: Bar, Quickshell
+
+Optional suggested tag: Weather
 
 Description: Weather for cities and coordinates, hourly rain timelines,
 animated past radar, global forecast maps and opt-in notifications. Free public
