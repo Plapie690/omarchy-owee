@@ -3,7 +3,7 @@ import qs.Commons as Commons
 import qs.Ui as Ui
 import "WeatherModel.js" as WeatherModel
 
-Column {
+ForecastSurface {
   id: root
   property var formats: null
   property var daily: null
@@ -46,7 +46,7 @@ Column {
     delegate: Rectangle {
       required property var modelData
       required property int index
-      width: root.width; height: dayContent.implicitHeight+Commons.Style.space(20)
+      width: parent.width; height: dayContent.implicitHeight+Commons.Style.space(20)
       color: "transparent"
       Accessible.role: Accessible.StaticText
       Accessible.name: modelData.label + ", " + WeatherModel.description(modelData.code) + ", low " + (modelData.low===null?"unavailable":root.displayNumber(modelData.low)+" degrees "+root.unit) + ", high " + (modelData.high===null?"unavailable":root.displayNumber(modelData.high)+" degrees "+root.unit) + ", " + dayRain.detail

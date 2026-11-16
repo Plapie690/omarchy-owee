@@ -3,7 +3,7 @@ import qs.Commons as Commons
 import qs.Ui as Ui
 import "WeatherModel.js" as WeatherModel
 
-Column {
+ForecastSurface {
   id: root
   property var formats: null
   property var hourly: null

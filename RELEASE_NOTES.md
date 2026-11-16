@@ -1,3 +1,13 @@
+# OWEE 1.3.2
+
+## Softer forecast panels
+
+Hourly and daily forecasts now sit on a shared, quiet surface derived from the
+active Omarchy theme. A subtle vertical tint, fine border and interior spacing
+separate the forecasts from the main background and soften their contrast.
+
+---
+
 # OWEE 1.3.1
 
 ## Marketplace compatibility

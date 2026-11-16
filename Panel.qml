@@ -12,7 +12,7 @@ Panel {
   id: root
   moduleName: "owee.weather"
   manageIpc: false
-  readonly property string pluginVersion: "1.3.1"
+  readonly property string pluginVersion: "1.3.2"
   property string activePage: "weather"
   property string mapPage: "radar"
   property bool measurementHelp: false
