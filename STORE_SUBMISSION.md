@@ -23,9 +23,9 @@ Runtime: Omarchy 4.5, Qt 6.12, Quickshell and Python >=3.12 with IANA tzdata.
 Permissions: user-level Python subprocesses, allowlisted HTTPS weather/map
 services, user state/cache writes, local opt-in `notify-send`. No sudo/root service.
 
-Release: 1.3.0, declared stable by maintainer decision on 16 November 2026.
+Release: 1.3.1, declared stable by maintainer decision on 16 November 2026.
 
-Validation: native runtime/UI, 164 Python tests, formatting/motion/preferences,
+Validation: native runtime/UI, 165 Python tests, formatting/motion/preferences,
 twelve international locations and seven map cases. Endurance was interrupted
 by system power-off after 5 h 05 min / 458 cycles; twelve hours are incomplete.
 The maintainer explicitly accepted this limitation for this release.
@@ -41,3 +41,5 @@ backup and an explicit rollback command. Independent community project.
 
 Submit through:
 https://github.com/omacom/omarchy-plugin-marketplace/issues/new?template=submit-plugin.yml
+
+Manifest compatibility fix: defaultSection is now center, as required by the marketplace contract.

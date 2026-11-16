@@ -195,12 +195,14 @@ Code is MIT; data and imagery have separate licenses and attribution requirement
 
 The Python runtime uses the standard library. Development checks additionally use
 pinned Ruff, mypy and coverage tools. Native UI QA needs QtTest and Pillow.
+Keep the virtual environment outside the plugin checkout: the native validator
+rejects symlinks inside plugin folders, including ignored development files.
 
 ```sh
-python3 -m venv reports/dev-venv
-reports/dev-venv/bin/python -m pip install -r requirements-dev.txt
+python3 -m venv /tmp/owee-dev-venv
+/tmp/owee-dev-venv/bin/python -m pip install -r requirements-dev.txt
 python3 -B qa/qualify.py
-python3 -B qa/qualify.py --native --quality-python reports/dev-venv/bin/python
+python3 -B qa/qualify.py --native --quality-python /tmp/owee-dev-venv/bin/python
 ```
 
 Live-source checks are separate, bounded probes:

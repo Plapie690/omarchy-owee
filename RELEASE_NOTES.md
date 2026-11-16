@@ -1,3 +1,23 @@
+# OWEE 1.3.1
+
+## Marketplace compatibility
+
+The marketplace accepts `left`, `center` or `right` for
+`barWidget.defaultSection`. Version 1.3.0 used `centerBegin`, which the local
+shell accepted but the marketplace rejected. The manifest now uses `center`;
+the native installer routes that choice beside the clock. Existing widget
+placement is preserved.
+
+A regression test now checks that the manifest uses the portable marketplace
+contract. Validation includes the marketplace's own manifest validator and the
+native runtime/UI gates. This patch changes the manifest and version labels,
+without changing weather data, preferences or application behavior.
+
+The incomplete endurance qualification documented for 1.3.0 below remains
+incomplete; this metadata patch does not claim a new twelve-hour run.
+
+---
+
 # OWEE 1.3.0
 
 Released as stable by maintainer decision on 16 November 2026.
