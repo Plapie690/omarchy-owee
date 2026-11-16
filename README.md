@@ -26,7 +26,7 @@ API key, subscription or extra Quickshell instance is started by the plugin.
 After the public repository is created under your GitHub account:
 
 ```sh
-omarchy plugin add https://github.com/YOUR_GITHUB_ACCOUNT/omarchy-owee.git --enable
+omarchy plugin add https://github.com/Plapie690/omarchy-owee.git --enable
 omarchy plugin update owee.weather
 ```
 

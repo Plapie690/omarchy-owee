@@ -4,7 +4,7 @@ Name: Omarchy Weather Enhanced Experience (OWEE)
 
 Plugin ID: `owee.weather`
 
-Repository: `https://github.com/YOUR_GITHUB_ACCOUNT/omarchy-owee`
+Repository: `https://github.com/Plapie690/omarchy-owee`
 
 Category: Widgets
 
