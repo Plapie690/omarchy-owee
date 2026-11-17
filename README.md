@@ -170,9 +170,10 @@ OWEE fetches forecasts directly from public weather providers. No account,
 API key or telemetry is required. Your favorites, preferences and cached
 forecasts stay on your computer. See [Privacy](PRIVACY.md) for details.
 
-Forecasts refresh every fifteen minutes. You can refresh manually once per
-minute. Cached forecasts remain readable offline and are clearly marked when
-out of date.
+Forecasts refresh every fifteen minutes. Click the refresh icon beside Settings
+to refresh manually, at most once per minute. The button stays accessible while
+you browse the panel and is disabled during loading. Cached forecasts remain
+readable offline and are clearly marked when out of date.
 
 Public providers have their own terms, regional coverage and availability limits.
 Code is MIT; data and imagery have separate licenses and attribution requirements.

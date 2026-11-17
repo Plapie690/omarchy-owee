@@ -161,6 +161,11 @@ def main():
     with tempfile.TemporaryDirectory(prefix="pixel-weather-layout-") as temporary:
         base = Path(temporary)
         plugin = prepare(base, args.plugin, args.output.resolve())
+        # Give real mouse/keyboard tests a deterministic busy window. Only this
+        # disposable layout fixture is delayed; shared fixtures remain unchanged.
+        backend_path = plugin / "weather.py"
+        backend_path.write_text(backend_path.read_text().replace(
+            "if name=='weather':\n", "if name=='weather':\n    if action=='load':time.sleep(0.3)\n", 1))
         env = os.environ.copy()
         env.update(QT_QPA_PLATFORM="offscreen", QT_QUICK_BACKEND="software", QT_SCALE_FACTOR=str(args.scale),
                    XDG_STATE_HOME=str(base / "state"), XDG_CACHE_HOME=str(base / "cache"))
@@ -174,6 +179,10 @@ def main():
         errors = [line for line in proc.stdout.splitlines() if "ERROR" in line or "QA_FAIL" in line]
         if proc.returncode or errors or "QA_UI_LAYOUT_PASS" not in proc.stdout:
             raise SystemExit(1)
+        loads = [row for row in trace if row["name"] == "weather" and row["action"] == "load"]
+        if len(loads) != 3:
+            raise SystemExit(f"QA_FAIL: expected startup, mouse and keyboard loads, got {len(loads)}")
+        print("QA_UI_REFRESH_PASS: mouse and keyboard each refresh once; busy clicks do not queue work")
         from PIL import Image, ImageChops
         before = Image.open(args.output / "precipitation-before.png").convert("RGB")
         after = Image.open(args.output / "precipitation-after.png").convert("RGB")

@@ -1,3 +1,21 @@
+# OWEE 1.3.4
+
+## Refresh beside Settings
+
+A manual refresh icon now sits beside Settings in the fixed panel header.
+It is accessible from Weather, Maps, Settings and the city picker, including
+when the content is scrolled. The same action is available through keyboard
+focus. It uses the existing weather worker and one-minute request limit, and
+is disabled while that worker is busy.
+
+The former Settings-only refresh button has moved to the header. Weather
+sources, preferences and the selected primary city are unchanged.
+
+The incomplete endurance qualification documented for 1.3.0 remains incomplete;
+this update does not claim a new twelve-hour run.
+
+---
+
 # OWEE 1.3.3
 
 ## Favorite cities in the navigation

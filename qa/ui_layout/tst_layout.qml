@@ -129,7 +129,38 @@ ShellRoot {
           p=panelLoader.item;scope=p.qaScope;scope.parent=stage;scope.width=stage.width;scope.height=stage.height;scope.visible=true
           Commons.Style.reduceMotion=true
           p.open();window.requestActivate()
-          step++;return
+          step=900;return
+        }
+        if(step===900) {
+          if(p.loading)return
+          viewport=find(scope,"weather-viewport")
+          var refresh=find(scope,"refresh-weather"),settings=find(scope,"nav-settings")
+          check(!!refresh&&refresh.visible&&refresh.enabled,"manual refresh is available in the fixed header")
+          check(refresh.parent===settings.parent&&refresh.width===settings.width&&refresh.height===settings.height,"refresh matches Settings size and action row")
+          check(Math.abs(settings.x-refresh.x-refresh.width-Commons.Style.space(8))<0.1,"refresh sits directly beside Settings")
+          var position=refresh.mapToItem(stage,0,0)
+          check(position.x>=0&&position.y>=0&&position.x+refresh.width<=stage.width&&position.y+refresh.height<=stage.height,"refresh fits inside the panel viewport")
+          step=901
+          click(refresh)
+          check(p.loading&&!refresh.enabled,"mouse refresh starts the worker and disables repeated activation")
+          events.mouseClick(refresh,refresh.width/2,refresh.height/2,Qt.LeftButton,Qt.NoModifier,1)
+          check(p.pendingActions.length===0,"clicking while busy does not queue another refresh")
+          return
+        }
+        if(step===901) {
+          if(p.loading)return
+          var keyboardRefresh=find(scope,"refresh-weather")
+          check(keyboardRefresh.enabled&&p.activePage==="weather"&&p.cityName==="Paris"&&p.primaryCityName==="Lyon","refresh restores the control without changing the page or either city")
+          keyboardRefresh.forceActiveFocus()
+          step=902
+          check(events.keyClick(Qt.Key_Return,Qt.NoModifier,1),"keyboard refresh activation delivered")
+          check(p.loading&&!keyboardRefresh.enabled,"keyboard refresh uses the same busy state")
+          return
+        }
+        if(step===902) {
+          if(p.loading)return
+          check(find(scope,"refresh-weather").enabled,"refresh is available again after keyboard loading completes")
+          step=1;return
         }
         if(step===1) {
           viewport=find(scope,"weather-viewport");hourly=find(scope,"hourly-forecast");daily=find(scope,"daily-forecast")
@@ -222,6 +253,7 @@ ShellRoot {
         }
         if(step===5) {
           check(p.activePage==="maps"&&p.mapPage==="radar","Maps opens radar view")
+          check(find(scope,"refresh-weather").visible,"manual refresh remains visible on Maps")
           check(p.qaRadar.active&&!p.qaForecast.active,"only radar active in radar view")
           check(viewport.contentY===0,"navigation resets scroll")
           capture("maps-radar", function(){click(find(scope,"map-forecast"))});step++;return
@@ -232,6 +264,7 @@ ShellRoot {
         }
         if(step===7) {
           check(p.activePage==="settings"&&!p.qaRadar.active&&!p.qaForecast.active,"Settings keeps maps inactive")
+          check(find(scope,"refresh-weather").visible,"manual refresh remains visible in Settings")
           capture("settings", function(){click(findButton(find(scope,"unit-selector"),"°F"))});step++;return
         }
         if(step===8) {
@@ -245,6 +278,7 @@ ShellRoot {
         }
         if(step===10) {
           check(p.searching&&!p.qaRadar.active&&!p.qaForecast.active,"city view suspends maps")
+          check(find(scope,"refresh-weather").visible,"manual refresh remains visible in the city picker")
           check(plain(scope),"markup-shaped city name remains plain text")
           capture("cities", function(){p.searching=false;p.showPage("maps");viewport.contentY=100;p.prepareOpening()});step++;return
         }

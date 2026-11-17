@@ -12,7 +12,7 @@ Panel {
   id: root
   moduleName: "owee.weather"
   manageIpc: false
-  readonly property string pluginVersion: "1.3.3"
+  readonly property string pluginVersion: "1.3.4"
   property string activePage: "weather"
   property string mapPage: "radar"
   property bool measurementHelp: false
@@ -447,6 +447,15 @@ Panel {
               onClicked: { root.searching=!root.searching; scope.resetForOpening(); if(root.searching) {cityInput.clear();Qt.callLater(function(){cityInput.forceActiveFocus()})} }
             }
             Ui.Button {
+              objectName: "refresh-weather"
+              width: Style.space(34); height: Style.space(34)
+              focusable: true; bordered: true; enabled: !root.loading
+              Accessible.name: "Refresh weather"
+              tooltipText: root.loading ? "Updating weather…" : "Refresh weather · at most once per minute"
+              MetricIcon { anchors.centerIn: parent; width: Style.space(18); height: width; kind: "refresh"; Accessible.ignored: true }
+              onClicked: root.refresh()
+            }
+            Ui.Button {
               objectName: "nav-settings"
               width: Style.space(34); height: Style.space(34)
               focusable: true; bordered: true; selected: root.activePage === "settings"
@@ -647,7 +656,6 @@ Panel {
               onChanged: function(patch) {root.run("notifications",JSON.stringify(patch))}
               onTestRequested: {root.notificationFeedback="Sending…";root.run("notify-test")}
             }
-            Ui.Button { objectName: "refresh-weather"; text: "Refresh now"; focusable: true; bordered: true; enabled: !root.loading; onClicked: root.refresh() }
             PText { width: parent.width; text: "OWEE " + root.pluginVersion; color: root.mutedText; font.pixelSize: Style.font.bodySmall }
             PText { width: parent.width; text: "Weather: Open-Meteo · Air: CAMS ENSEMBLE"; color: root.mutedText; font.pixelSize: Style.font.bodySmall; wrapMode: Text.WordWrap }
           }
