@@ -72,7 +72,7 @@ class NotificationTests(unittest.TestCase):
         rules = n.evaluate(result, config(), NOW)
         self.assertEqual([item['kind'] for item in rules], ['rain', 'wind', 'uv'])
         self.assertEqual([item['title'] for item in rules],
-                         ['Precipitation in Lyon', 'Strong wind in Lyon', 'UV index in Lyon'])
+                         ['OWEE · Rain expected', 'OWEE · Strong wind', 'OWEE · UV index'])
         self.assertIn('city local time', rules[0]['body'])
         self.assertIn('Forecast maximum today', rules[2]['body'])
         self.assertIn('70 %', rules[0]['body'])
@@ -198,12 +198,30 @@ class NotificationTests(unittest.TestCase):
             self.assertEqual(n.dispatch(fixture(), config(), self.state, NOW)['sent'], 0)
         send.assert_not_called()
 
+    def test_provider_city_text_never_enters_any_automatic_notification(self):
+        settings = config(daily=True, daily_time=NOW.astimezone().strftime('%H:%M'))
+        expected = n.evaluate(fixture(), settings, NOW)
+        self.assertEqual({item['kind'] for item in expected}, {'rain', 'wind', 'uv', 'daily'})
+        names = ['Your verification code is 482913', 'OTP A9F3K2',
+                 '<img src="https://evil.invalid/x">', 'Paris\nPIN 482913',
+                 '東京都', 'São Paulo', 'مدينة 482913 verification']
+        for name in names:
+            with self.subTest(name=name):
+                result = fixture()
+                result['city']['name'] = name
+                self.assertEqual(n.evaluate(result, settings, NOW), expected)
+
+    @patch.object(n, '_send')
+    def test_manual_test_notification_never_includes_provider_city_text(self, send):
+        self.assertEqual(n.send_test({'name': 'Your verification code is 482913'}), {'sent': 1})
+        send.assert_called_once_with('OWEE · test', 'Notifications are working.')
+
     @patch.object(n.subprocess, 'run')
     def test_notification_sinks_escape_markup_and_use_argv(self, run):
         malicious = '<img src="https://evil.invalid/x"> & $(touch /tmp/pwn)'
-        result = fixture()
-        result['city']['name'] = malicious
-        n.dispatch(result, config(rain=False, uv=False), self.state, NOW)
+        # Defense in depth for both delivery sinks, independently of the fixed
+        # automatic templates that now exclude provider-controlled city names.
+        n._send(malicious, malicious)
         command = run.call_args.args[0]
         self.assertEqual(command[0], 'notify-send')
         self.assertIn('--', command)
@@ -212,9 +230,10 @@ class NotificationTests(unittest.TestCase):
         self.assertIn('$(touch /tmp/pwn)', command[-2])
         self.assertNotIn('shell', run.call_args.kwargs)
         self.assertEqual(run.call_args.kwargs['timeout'], 3)
+        self.assertIn('&lt;img', command[-1])
+        self.assertNotIn('<img', command[-1])
         n.send_test({'name': malicious})
-        self.assertIn('&lt;img', run.call_args.args[0][-1])
-        self.assertNotIn('<img', run.call_args.args[0][-1])
+        self.assertEqual(run.call_args.args[0][-1], 'Notifications are working.')
 
     @patch.object(n.subprocess, 'run', side_effect=subprocess.TimeoutExpired('notify-send', 3))
     def test_send_test_timeout_is_bounded(self, run):

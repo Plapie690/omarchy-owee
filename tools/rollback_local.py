@@ -20,6 +20,14 @@ migration = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(migration)
 
 
+def verified_copy(backup, relative, record, destination):
+    """Stage one inventoried file and check the copied bytes against its record."""
+    source = migration.safe_path(backup / relative)
+    migration.atomic_copy(source, destination, record["mode"])
+    if migration.sha256(destination) != record["sha256"]:
+        raise ValueError("Backup changed during rollback: " + relative)
+
+
 def rollback(args):
     config, state, backup = migration.safe_path(args.config_home), migration.safe_path(args.state_home), migration.safe_path(args.backup)
     metadata = migration.verify_backup(backup, config, state)
@@ -44,6 +52,15 @@ def rollback(args):
         return report
     with migration.transaction_lock(config), tempfile.TemporaryDirectory(prefix=".owee-rollback-", dir=config / "omarchy") as temporary:
         journal = Path(temporary)
+        # Stage every state/config source before changing any live target. The
+        # backup can change after verify_backup(), so hash the staged bytes too.
+        verified_targets = []
+        for original, target, mode in targets:
+            relative = original.relative_to(backup).as_posix()
+            staged_source = journal / "verified" / relative
+            verified_copy(backup, relative, metadata["files"][relative], staged_source)
+            verified_targets.append((staged_source, target, mode))
+        targets = verified_targets
         snapshots = []
         for index, (_, target, _) in enumerate(targets):
             if target.exists():
@@ -62,13 +79,20 @@ def rollback(args):
                 migration.safe_path(legacy.parent)
                 staged = Path(tempfile.mkdtemp(prefix=".owee-legacy-", dir=legacy.parent))
                 try:
-                    shutil.copytree(backup / "legacy-plugin", staged, dirs_exist_ok=True)
+                    for relative, record in metadata["files"].items():
+                        if relative.startswith("legacy-plugin/"):
+                            destination = staged / Path(relative).relative_to("legacy-plugin")
+                            verified_copy(backup, relative, record, destination)
+                    if migration.verify_backup(backup, config, state) != metadata:
+                        raise ValueError("Backup metadata changed during rollback")
                     os.replace(staged, legacy)
                     legacy_created = True
                     migration.fsync_directory(legacy.parent)
                 finally:
                     if staged.exists():
                         shutil.rmtree(staged)
+            elif migration.verify_backup(backup, config, state) != metadata:
+                raise ValueError("Backup metadata changed during rollback")
             for original, target, mode in targets:
                 restored.append(target)
                 migration.atomic_copy(original, target, mode)

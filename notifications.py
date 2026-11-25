@@ -172,14 +172,14 @@ def evaluate(result, config, now=None):
                 clock_format = "%d/%m %H:%M" if start.date()!=hour.date() else "%H:%M"
                 period = start.strftime(clock_format)+"–"+hour.strftime(clock_format)
                 if start.utcoffset()!=hour.utcoffset(): period=start.strftime("%H:%M UTC%z")+"–"+hour.strftime("%H:%M UTC%z")
-                candidate("rain", "Precipitation in " + name,
+                candidate("rain", "OWEE · Rain expected",
                           f"Chance {round(chance)} % during {period} (city local time). Open-Meteo forecast.",
                           hour.isoformat())
                 break
 
     wind = current.get("wind_speed_10m")
     if config["wind"] and _number(wind, config["wind_kmh"], 500):
-        candidate("wind", "Strong wind in " + name,
+        candidate("wind", "OWEE · Strong wind",
                   f"Current wind: {round(wind)} km/h. Threshold: {config['wind_kmh']} km/h. Open-Meteo data.",
                   current_time.isoformat())
 
@@ -189,7 +189,7 @@ def evaluate(result, config, now=None):
         daily_index = next((i for i, value in enumerate(daily["time"][:20]) if value == day), -1)
     uv = _at(daily.get("uv_index_max"), daily_index) if isinstance(daily, dict) else None
     if config["uv"] and _number(uv, config["uv_index"], 30):
-        candidate("uv", "UV index in " + name,
+        candidate("uv", "OWEE · UV index",
                   f"Forecast maximum today: {uv:g}. Threshold: {config['uv_index']}. Open-Meteo forecast.", day)
 
     scheduled, scheduled_age = _daily_occurrence(clock, config['daily_time'])
@@ -197,7 +197,7 @@ def evaluate(result, config, now=None):
         unit = "F" if result.get("unit") == "F" else "C"
         low = _temperature(_at(daily.get("temperature_2m_min"), daily_index), unit) if isinstance(daily, dict) else "—"
         high = _temperature(_at(daily.get("temperature_2m_max"), daily_index), unit) if isinstance(daily, dict) else "—"
-        candidate("daily", "Daily weather · " + name,
+        candidate("daily", "OWEE · Daily weather",
                   f"Currently {_temperature(current.get('temperature_2m'), unit)}. Low {low}, high {high}. Open-Meteo forecast.",
                   scheduled.date().isoformat())
     return output
@@ -214,9 +214,10 @@ def _send(title, body):
 
 def send_test(city=None):
     """Send an explicitly requested test, even when automatic rules are off."""
-    name = _text(city.get("name")) if isinstance(city, dict) else ""
+    # Keep the argument for CLI compatibility. Provider text must not reach the
+    # shell's title/body classifier, which lets verification codes bypass DND.
     try:
-        _send("OWEE · test", "Notifications are working" + (" for " + name if name else "") + ".")
+        _send("OWEE · test", "Notifications are working.")
         return {"sent": 1}
     except (OSError, subprocess.SubprocessError) as error:
         report_error('notifications.test_delivery', error)

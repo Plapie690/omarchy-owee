@@ -258,7 +258,7 @@ def verify_backup(backup, config, state):
         if not isinstance(relative, str) or not isinstance(record, dict):
             raise ValueError("Invalid backup file record")
         path = Path(relative)
-        if path.is_absolute() or ".." in path.parts or not path.parts or path.parts[0] not in ("state", "legacy-plugin", "shell.json"):
+        if path.is_absolute() or ".." in path.parts or not path.parts or relative != path.as_posix() or path.parts[0] not in ("state", "legacy-plugin", "shell.json"):
             raise ValueError("Unsafe backup path")
         content = safe_path(backup / path)
         if not content.is_file() or sha256(content) != record.get("sha256"):
@@ -270,6 +270,10 @@ def verify_backup(backup, config, state):
     for name in metadata["state_files"]:
         if not isinstance(name, str) or Path(name).name != name or not name.endswith(".json") or "state/" + name not in metadata["files"]:
             raise ValueError("Invalid backed-up state filename")
+    actual = {path.relative_to(backup).as_posix() for path in backup.rglob("*")
+              if path.is_file() and path != manifest}
+    if actual != set(metadata["files"]):
+        raise ValueError("Backup inventory does not match manifest")
     read_shell(backup / "shell.json")
     return metadata
 

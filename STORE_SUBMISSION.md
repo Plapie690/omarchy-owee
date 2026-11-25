@@ -23,7 +23,7 @@ Runtime: Omarchy 4.5, Qt 6.12, Quickshell and Python >=3.12 with IANA tzdata.
 Permissions: user-level Python subprocesses, allowlisted HTTPS weather/map
 services, user state/cache writes, local opt-in `notify-send`. No sudo/root service.
 
-Release: 1.3.4. The initial stable release was declared by maintainer decision
+Release: 1.3.5. The initial stable release was declared by maintainer decision
 on 16 November 2026; subsequent changes are recorded in RELEASE_NOTES.md.
 
 Validation: native runtime/UI, 165 Python tests, formatting/motion/preferences,

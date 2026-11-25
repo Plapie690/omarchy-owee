@@ -47,6 +47,11 @@ record elapsed time, repeated interactions, CPU, memory and the tested source ha
 Native Wayland loading is checked separately. CI runs deterministic tests on
 hosted runners; native checks use the trusted reference desktop.
 
+The native `notification-policy` gate generates real notification payloads with
+delivery mocked, then imports the installed Omarchy classifier and delivery
+policy. It checks Do Not Disturb with hostile provider names and records the
+shell source hashes. It never sends desktop notifications or modifies Omarchy.
+
 See [RELEASE.md](RELEASE.md) for the procedure and
 [RELEASE_NOTES.md](RELEASE_NOTES.md) for the actual validation history.
 
@@ -65,3 +70,8 @@ The migration backs up settings and bar layout, preserves favorites and
 notification rules, and provides an explicit rollback tool. Legacy-compatible
 state directories keep the name `pixel-weather`. A locked session may require
 an Omarchy shell restart after unlocking.
+
+Rollback refuses files absent from the backup manifest. Restore sources are
+staged and checked against the recorded hashes before live files are changed.
+If backup contents change during staging, rollback aborts without publishing
+the staged plugin or replacing the current settings.

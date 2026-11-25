@@ -1,3 +1,31 @@
+# OWEE 1.3.5
+
+## Marketplace review fixes
+
+Addresses the two low-severity findings reported by HANCORE-linux in the
+[marketplace review](https://github.com/omacom/omarchy-plugin-marketplace/issues/15159#issuecomment-7013791022).
+
+- **Backup integrity:** rollback refuses files missing from the backup inventory.
+  It restores the legacy plugin from explicit manifest entries, stages state and
+  configuration sources, and checks copied bytes against their recorded hashes.
+  Backup contents and metadata are rechecked before publication. Additional or
+  altered files abort restoration before live targets are changed.
+- **Notification policy:** all four automatic alerts and the test message now
+  use fixed notification text and validated weather values. Provider city names
+  are kept out of both notification sinks, preventing them from being classified
+  as verification codes that bypass Do Not Disturb. Alerts still refer to the
+  primary bar city, whose name remains available in the panel.
+
+Regression tests cover malicious backups, changes during staging, successful
+byte/mode-preserving restoration, and hostile/international city names. A native
+qualification gate tests actual OWEE payloads against the installed Omarchy
+classifier and DND delivery policy without sending any desktop notifications.
+
+The incomplete endurance qualification documented for 1.3.0 remains incomplete;
+this update does not claim a new twelve-hour run or marketplace approval.
+
+---
+
 # OWEE 1.3.4
 
 ## Refresh beside Settings

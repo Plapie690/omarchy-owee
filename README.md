@@ -162,6 +162,7 @@ near the poles. Forecast maps are model predictions, distinct from radar.
 **Notifications stay under your control.** Quiet hours and the daily summary
 follow the desktop clock; weather intervals follow the primary city's timezone.
 Stale data does not trigger automatic alerts. Do Not Disturb takes priority.
+Alerts refer to your bar city; its name is shown in the panel.
 Notifications are informational, not official weather warnings.
 
 ## Data and privacy

@@ -65,6 +65,7 @@ def main():
                 ('coverage',[sys.executable,'-B','qa/coverage/run.py']),
                 ('motion',[sys.executable,'-B','qa/weather_motion/run.py','--native']),
                 ('formats',[sys.executable,'-B','qa/formats/run.py']),
+                ('notification-policy',[sys.executable,'-B','qa/notification_policy/run.py','--output',str(out/'notification-policy')]),
                 ('preferences',[sys.executable,'-B','qa/native_preferences/run.py','--output',str(out/'preferences')]),
                 ('preferences150',[sys.executable,'-B','qa/native_preferences/run.py','--scale','1.5','--output',str(out/'preferences150')]),
                 ('favorite-cities',[sys.executable,'-B','qa/favorite_cities/run.py','--output',str(out/'favorite-cities')]),
